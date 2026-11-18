@@ -97,3 +97,9 @@ windows-sys = { version = "0.61.2", features = [
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
 ] }
+
+[profile.release]
+# Whole-program optimization for the shipped binary. panic stays "unwind" so a
+# panicking task does not take the server and every pane down with it.
+lto = "fat"
+codegen-units = 1
