@@ -74,7 +74,12 @@ fn fast_path_blocker(
         Some("client_surface_patch.fallback.copy_feedback")
     } else if state.link_hover_blocks_patch(patch) {
         Some("client_surface_patch.fallback.link_hover")
-    } else if state.selection.is_some() {
+    } else if state.selection.as_ref().is_some_and(|selection| {
+        patch
+            .panes
+            .iter()
+            .any(|pane| pane.pane_id == selection.pane_id)
+    }) {
         Some("client_surface_patch.fallback.selection")
     } else if state.copy_mode.is_some() {
         Some("client_surface_patch.fallback.copy_mode")
@@ -176,26 +181,6 @@ impl ClientShellState {
             let (cols, rows) = self.last_composed_size.unwrap_or_default();
             self.layout(cols, rows).pane_surface
         });
-        let composed_patch = fast_path_area.map(|area| ClientComposedSurfacePatch {
-            rows: patch
-                .rows
-                .iter()
-                .map(|row| crate::protocol::PaneSurfacePatchRow {
-                    x: area.x.saturating_add(row.x),
-                    y: area.y.saturating_add(row.y),
-                    cells: row.cells.clone(),
-                })
-                .collect(),
-            cursor: patch
-                .cursor
-                .clone()
-                .map(|cursor| crate::protocol::CursorState {
-                    x: area.x.saturating_add(cursor.x),
-                    y: area.y.saturating_add(cursor.y),
-                    visible: cursor.visible,
-                    shape: cursor.shape,
-                }),
-        });
         if let Some(area) = fast_path_area {
             let applied = self
                 .pane_surface
@@ -252,6 +237,24 @@ impl ClientShellState {
             }
             self.set_pane_surface(next);
         }
+        // The retained surface has its own cell storage now. Transfer the owned
+        // wire rows to host output instead of cloning every cell and string again.
+        let composed_patch = fast_path_area.map(|area| {
+            let mut rows = patch.rows;
+            for row in &mut rows {
+                row.x = area.x.saturating_add(row.x);
+                row.y = area.y.saturating_add(row.y);
+            }
+            ClientComposedSurfacePatch {
+                rows,
+                cursor: patch.cursor.map(|cursor| crate::protocol::CursorState {
+                    x: area.x.saturating_add(cursor.x),
+                    y: area.y.saturating_add(cursor.y),
+                    visible: cursor.visible,
+                    shape: cursor.shape,
+                }),
+            }
+        });
         ClientPaneSurfacePatchOutcome::Applied(composed_patch)
     }
 }

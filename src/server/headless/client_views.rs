@@ -591,12 +591,14 @@ impl HeadlessServer {
                 }
             }
         } else {
-            crate::ui::compute_tab_surface_for(
+            // Only runtime geometry is needed here. Building pane/split metadata
+            // is discarded and the actual surface renderer computes it later.
+            crate::ui::resize_tab_surface(
                 &self.app.state,
                 &self.app.terminal_runtimes,
-                Some(target),
+                target.workspace_index,
+                target.tab_index,
                 area,
-                true,
                 cell_size,
             );
         }

@@ -785,6 +785,33 @@ fn pane_key_release_keeps_the_press_target() {
 }
 
 #[test]
+fn pane_key_release_keeps_its_target_across_a_tab_projection_change() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    let press = state.handle_input_bytes(b"\x1b[99;5u");
+    let mut next = snapshot();
+    next.revision = 2;
+    next.focused_tab_id = Some("tab_2".into());
+    next.focused_pane_id = Some("pane_2".into());
+    next.tabs[0].tab_id = "tab_2".into();
+    next.panes[0].tab_id = "tab_2".into();
+    next.panes[0].pane_id = "pane_2".into();
+    state.set_snapshot(Box::new(next));
+    let release = state.handle_input_bytes(b"\x1b[99;5:3u");
+    let ClientMessage::ClientShellPaneInput {
+        pane_id: before, ..
+    } = &press.requests[0]
+    else {
+        panic!("targeted press");
+    };
+    let ClientMessage::ClientShellPaneInput { pane_id: after, .. } = &release.requests[0] else {
+        panic!("targeted release");
+    };
+    assert_eq!(before, after);
+    assert_eq!(after, "pane_1");
+}
+
+#[test]
 fn help_overlay_uses_live_keymap_and_owns_filter_state() {
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
     state.set_snapshot(Box::new(snapshot()));
