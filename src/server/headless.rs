@@ -574,22 +574,27 @@ impl HeadlessServer {
                 if needs_full_render && !outer_title_synced {
                     self.sync_window_title();
                 }
-                if !needs_full_render && !needs_graphics_render && !pty_dirty {
+                // Viewport movement shares retained row delivery, not PTY input
+                // eligibility. Combine origins only after classifying PTY work.
+                let mut surface_sources = render_request.pty_sources;
+                surface_sources.extend(render_request.viewport_sources);
+                let surface_dirty = !surface_sources.is_empty();
+                if !needs_full_render && !needs_graphics_render && !surface_dirty {
                     // A synchronized-output OSC title can be the only pending work.
                     // Its deferred PTY repaint has its own signal; do not manufacture
                     // a full UI render for this client-local side effect.
                     needs_render = false;
                     continue;
                 }
-                let hidden_only = pty_dirty
+                let hidden_only = surface_dirty
                     && !needs_full_render
                     && !needs_graphics_render
-                    && !self.pty_sources_visible_to_any_render_target(&render_request.pty_sources);
+                    && !self.pty_sources_visible_to_any_render_target(&surface_sources);
                 if hidden_only {
                     crate::render_prof::event("render.skipped.hidden_sources");
                 } else if !needs_full_render
                     && !needs_graphics_render
-                    && self.render_retained_pane_surface_and_stream(&render_request.pty_sources)
+                    && self.render_retained_pane_surface_and_stream(&surface_sources)
                 {
                     crate::render_prof::event("retained_surface.invoke");
                 } else {
@@ -2452,6 +2457,29 @@ impl HeadlessServer {
                 }
                 if let Err(err) = input_result {
                     warn!(client_id, pane_id, err = %err, "targeted client shell input failed");
+                }
+                if scroll_changed
+                    && !foreground_changed
+                    && !geometry_changed
+                    && !events.is_empty()
+                    && events.iter().all(|event| {
+                        matches!(
+                            event,
+                            protocol::ClientPaneInputEvent::Mouse {
+                                kind: protocol::ClientMouseKind::ScrollUp
+                                    | protocol::ClientMouseKind::ScrollDown,
+                                ..
+                            }
+                        )
+                    })
+                {
+                    // The existing metrics comparison is conservative: PTY output
+                    // may also have changed history during input delivery. Both
+                    // causes use the same guarded terminal snapshot/fallback.
+                    if self.app.render_dirty.request_viewport(runtime_pane_id) {
+                        self.app.render_notify.notify_one();
+                    }
+                    return false;
                 }
                 foreground_changed | geometry_changed || scroll_changed
             }

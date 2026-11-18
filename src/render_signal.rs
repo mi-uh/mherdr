@@ -8,6 +8,7 @@ use crate::layout::PaneId;
 pub(crate) struct RenderRequest {
     pub(crate) generic: bool,
     pub(crate) pty_sources: HashSet<PaneId>,
+    pub(crate) viewport_sources: HashSet<PaneId>,
     pub(crate) terminal_title_sources: HashSet<PaneId>,
 }
 
@@ -62,12 +63,25 @@ impl RenderSignal {
             .immediate_pty_sources = sources;
     }
 
+    /// Viewport movement needs presentation, but is not PTY output and must not
+    /// qualify for the keyboard-triggered early-render budget.
+    pub(crate) fn request_viewport(&self, pane_id: PaneId) -> bool {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let source_added = state.request.viewport_sources.insert(pane_id);
+        let became_pending = !self.pending.swap(true, Ordering::AcqRel);
+        became_pending || source_added
+    }
+
     pub(crate) fn has_immediate_work(&self) -> bool {
         let state = self
             .state
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         state.request.generic
+            || !state.request.viewport_sources.is_empty()
             || !state.request.terminal_title_sources.is_empty()
             || state
                 .request
@@ -203,5 +217,30 @@ mod tests {
         let request = signal.take();
         assert!(request.generic);
         assert_eq!(request.pty_sources, HashSet::from([pane_id]));
+    }
+
+    #[test]
+    fn viewport_damage_coalesces_without_granting_pty_eligibility() {
+        let signal = RenderSignal::new();
+        let pane = PaneId::from_raw(10);
+        let other = PaneId::from_raw(20);
+        signal.set_immediate_pty_sources(HashSet::from([pane]));
+        assert!(signal.request_viewport(pane));
+        assert!(!signal.request_viewport(pane));
+        assert!(signal.has_immediate_work());
+        assert!(!signal.has_pending_visible_pty_source(|_| true));
+        // A second origin must wake a loop already waiting on coalesced work.
+        assert!(signal.request_viewport(other));
+        signal.request_pty(pane);
+        signal.request_terminal_title(other);
+        signal.request_generic();
+        let request = signal.take();
+        assert_eq!(request.viewport_sources, HashSet::from([pane, other]));
+        assert_eq!(request.pty_sources, HashSet::from([pane]));
+        assert_eq!(request.terminal_title_sources, HashSet::from([other]));
+        assert!(request.generic);
+        assert!(!signal.is_pending());
+        assert!(!signal.has_immediate_work());
+        assert!(signal.take().viewport_sources.is_empty());
     }
 }
