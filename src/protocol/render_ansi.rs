@@ -328,8 +328,9 @@ fn compute_prof_blit_stats(
             } else {
                 in_run = false;
             }
-            to_skip = cell_width(cell).saturating_sub(1);
-            let affected_width = cmp::max(cell_width(cell), cell_width(prev_cell));
+            let width = cell_width(cell);
+            to_skip = width.saturating_sub(1);
+            let affected_width = cmp::max(width, cell_width(prev_cell));
             invalidated = cmp::max(affected_width, invalidated).saturating_sub(1);
         }
     }
@@ -625,6 +626,7 @@ fn blit_patch_to(
             let col = row.x + offset as u16;
             let idx = usize::from(row.y) * usize::from(frame.width) + usize::from(col);
             let prev_cell = &frame.cells[idx];
+            let width = cell_width(cell);
             if !cell.skip && (!cells_equal(cell, prev_cell) || invalidated > 0) && to_skip == 0 {
                 let cursor_position =
                     (next_inline_col != Some(col) || invalidated > 0).then_some((col, row.y));
@@ -637,11 +639,11 @@ fn blit_patch_to(
                     &mut active_hyperlink,
                     frame,
                 );
-                next_inline_col = (cell.symbol.is_ascii() && cell_width(cell) == 1)
-                    .then_some(col.saturating_add(1));
+                next_inline_col =
+                    (cell.symbol.is_ascii() && width == 1).then_some(col.saturating_add(1));
             }
-            to_skip = cell_width(cell).saturating_sub(1);
-            let affected_width = cmp::max(cell_width(cell), cell_width(prev_cell));
+            to_skip = width.saturating_sub(1);
+            let affected_width = cmp::max(width, cell_width(prev_cell));
             invalidated = cmp::max(affected_width, invalidated).saturating_sub(1);
         }
     }
@@ -748,6 +750,12 @@ fn repeat_ime_anchor_after_sync() -> bool {
 
 /// Writes all cells in the frame (full redraw).
 fn cell_width(cell: &CellData) -> usize {
+    // Most shell/TUI cells are one printable ASCII byte. Avoid Unicode and
+    // halfwidth-kana grapheme traversal for those, but not controls or strings
+    // with multiple bytes (including combining marks and wide graphemes).
+    if matches!(cell.symbol.as_bytes(), [b' '..=b'~']) {
+        return 1;
+    }
     if is_halfwidth_katakana_voiced_grapheme(&cell.symbol) {
         return 2;
     }
@@ -1021,6 +1029,7 @@ fn write_changed_cells(writer: &mut impl Write, frame: &FrameData, prev: &FrameD
             let idx = (row as usize) * (frame.width as usize) + (col as usize);
             let cell = &frame.cells[idx];
             let prev_cell = &prev.cells[idx];
+            let width = cell_width(cell);
 
             if !cell.skip
                 && (!cells_visually_equal(
@@ -1042,12 +1051,12 @@ fn write_changed_cells(writer: &mut impl Write, frame: &FrameData, prev: &FrameD
                     &mut active_hyperlink,
                     frame,
                 );
-                next_inline_col = (cell.symbol.is_ascii() && cell_width(cell) == 1)
-                    .then_some(col.saturating_add(1));
+                next_inline_col =
+                    (cell.symbol.is_ascii() && width == 1).then_some(col.saturating_add(1));
             }
 
-            to_skip = cell_width(cell).saturating_sub(1);
-            let affected_width = cmp::max(cell_width(cell), cell_width(prev_cell));
+            to_skip = width.saturating_sub(1);
+            let affected_width = cmp::max(width, cell_width(prev_cell));
             invalidated = cmp::max(affected_width, invalidated).saturating_sub(1);
         }
     }
@@ -1104,6 +1113,42 @@ mod tests {
         let mut cell = make_cell(symbol, 0, 0, 0);
         cell.hyperlink = Some(index);
         cell
+    }
+
+    fn reference_cell_width(cell: &CellData) -> usize {
+        if is_halfwidth_katakana_voiced_grapheme(&cell.symbol) {
+            2
+        } else {
+            cell.symbol.width()
+        }
+    }
+
+    #[test]
+    fn cell_width_preserves_ascii_controls_and_unicode_graphemes() {
+        for byte in 0..=127u8 {
+            let symbol = char::from(byte).to_string();
+            let cell = make_cell(&symbol, 0, 0, 0);
+            assert_eq!(cell_width(&cell), reference_cell_width(&cell), "{symbol:?}");
+        }
+        for symbol in [
+            "",
+            "ab",
+            "\r\n",
+            "a\t",
+            "é",
+            "e\u{301}",
+            "\u{301}",
+            "界",
+            "💡",
+            "👨‍👩‍👧‍👦",
+            "🇩🇪",
+            "\u{200d}",
+            "ｶ\u{ff9e}",
+            "ﾊ\u{ff9f}",
+        ] {
+            let cell = make_cell(symbol, 0, 0, 0);
+            assert_eq!(cell_width(&cell), reference_cell_width(&cell), "{symbol:?}");
+        }
     }
 
     #[test]
