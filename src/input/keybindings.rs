@@ -28,6 +28,7 @@ pub(crate) enum KeybindAction {
     SwitchTab(usize),
     FocusAgent(usize),
     WorkspacePicker,
+    AgentPicker,
     PreviousWorkspace,
     NextWorkspace,
     PreviousAgent,
@@ -99,6 +100,7 @@ pub(crate) fn resolve_non_indexed_action(
         (&keybinds.help, KeybindAction::Help),
         (&keybinds.settings, KeybindAction::Settings),
         (&keybinds.workspace_picker, KeybindAction::WorkspacePicker),
+        (&keybinds.agent_picker, KeybindAction::AgentPicker),
         (&keybinds.new_workspace, KeybindAction::NewWorkspace),
         (&keybinds.new_worktree, KeybindAction::NewWorktree),
         (&keybinds.open_worktree, KeybindAction::OpenWorktree),
@@ -259,6 +261,28 @@ mod tests {
     use crossterm::event::{KeyCode, KeyModifiers};
 
     use super::*;
+
+    #[test]
+    fn agent_picker_has_a_default_and_accepts_direct_bindings() {
+        let keybinds = crate::config::Config::default().keybinds();
+        assert!(matches!(
+            resolve_prefix_binding(
+                &keybinds,
+                &TerminalKey::new(KeyCode::Char('a'), KeyModifiers::empty())
+            ),
+            Some(KeybindMatch::Action(KeybindAction::AgentPicker))
+        ));
+        let config: crate::config::Config =
+            toml::from_str("[keys]\nagent_picker = \"alt+a\"").unwrap();
+        assert!(config.collect_diagnostics().is_empty());
+        assert!(matches!(
+            resolve_direct_binding(
+                &config.keybinds(),
+                &TerminalKey::new(KeyCode::Char('a'), KeyModifiers::ALT)
+            ),
+            Some(KeybindMatch::Action(KeybindAction::AgentPicker))
+        ));
+    }
 
     #[test]
     fn clear_pane_is_unbound_by_default_and_configurable() {

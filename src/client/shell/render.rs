@@ -32,6 +32,7 @@ pub(super) fn render_mode_bar(
     buffer: &mut Buffer,
     pane_area: Rect,
     mode: ClientShellMode,
+    navigating_agents: bool,
     copy_mode: Option<&ClientCopyModeState>,
     endpoint_error: Option<&str>,
     update_available: bool,
@@ -99,10 +100,58 @@ pub(super) fn render_mode_bar(
             }
             ClientShellMode::Navigate => {
                 segments.extend([
-                    (" NAVIGATE ".to_owned(), mode_style),
+                    (
+                        format!(
+                            " NAVIGATE {} ",
+                            if navigating_agents {
+                                "agents"
+                            } else {
+                                "spaces"
+                            }
+                        ),
+                        mode_style,
+                    ),
                     (" esc back  ".to_owned(), base),
-                    ("↑/↓".to_owned(), key),
-                    (" workspace  ".to_owned(), base),
+                    (
+                        format!(
+                            "{}/{}",
+                            keybinds
+                                .keybinds
+                                .navigate
+                                .workspace_down
+                                .labels()
+                                .into_iter()
+                                .next()
+                                .unwrap_or_default(),
+                            keybinds
+                                .keybinds
+                                .navigate
+                                .workspace_up
+                                .labels()
+                                .into_iter()
+                                .next()
+                                .unwrap_or_default()
+                        ),
+                        key,
+                    ),
+                    (" select  ".to_owned(), base),
+                    (
+                        prefix_rhs(if navigating_agents {
+                            &keybinds.keybinds.workspace_picker
+                        } else {
+                            &keybinds.keybinds.agent_picker
+                        }),
+                        key,
+                    ),
+                    (
+                        if navigating_agents {
+                            " spaces  "
+                        } else {
+                            " agents  "
+                        }
+                        .to_owned(),
+                        base,
+                    ),
                     ("tab".to_owned(), key),
                     (" pane  ".to_owned(), base),
                     (prefix_rhs(&keybinds.keybinds.help), key),
@@ -245,6 +294,7 @@ pub(super) struct ShellRenderState<'a> {
     pub(super) sidebar_section_split: f32,
     pub(super) tab_drag_insert_index: Option<usize>,
     pub(super) selected_workspace_id: Option<&'a WorkspaceNavigationTarget>,
+    pub(super) selected_agent_id: Option<&'a super::agent_navigation::AgentNavigationTarget>,
     pub(super) reveal_navigation_workspace: &'a mut bool,
     pub(super) dragged_workspace_id: Option<&'a str>,
     pub(super) workspace_drop_indicator_row: Option<u16>,
@@ -321,6 +371,13 @@ pub(super) fn render_shell(
             &mut hits,
         );
     }
+    super::agent_navigation::render_agent_navigation_highlight(
+        buffer,
+        &hits,
+        state.selected_agent_id,
+        state.active_endpoint_id,
+        &config.palette,
+    );
     if !config.mouse_capture {
         hits.sidebar_divider = Rect::default();
         hits.sidebar_section_divider = Rect::default();

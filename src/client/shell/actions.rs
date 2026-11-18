@@ -149,6 +149,7 @@ impl ClientShellState {
                     return;
                 }
                 if action == crate::input::KeybindAction::WorkspacePicker {
+                    self.agent_navigation = None;
                     self.pending_workspace_highlight = None;
                     self.mobile_switcher_scroll = 0;
                     self.reveal_mobile_workspace = false;
@@ -156,6 +157,11 @@ impl ClientShellState {
                     self.navigate_workspace_id = self.focused_navigation_target();
                     self.reveal_navigation_workspace = true;
                     outcome.repaint = true;
+                    return;
+                }
+                if action == crate::input::KeybindAction::AgentPicker {
+                    self.navigate_workspace_id = self.focused_navigation_target();
+                    self.begin_agent_navigation(outcome);
                     return;
                 }
                 if action == crate::input::KeybindAction::EnterResizeMode {

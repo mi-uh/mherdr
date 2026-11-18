@@ -542,6 +542,12 @@
           "description": "Open the workspace navigation surface."
         },
         {
+          "key": "keys.agent_picker",
+          "type": "keybinding",
+          "default": "\"prefix+a\"",
+          "description": "Open keyboard navigation in the agent sidebar."
+        },
+        {
           "key": "keys.goto",
           "type": "keybinding",
           "default": "\"prefix+g\"",
@@ -550,13 +556,13 @@
         {
           "key": "keys.navigate_workspace_up",
           "type": "keybinding",
-          "default": "\"up\"",
+          "default": "[\"k\", \"up\"]",
           "description": "Move workspace selection up in navigate mode."
         },
         {
           "key": "keys.navigate_workspace_down",
           "type": "keybinding",
-          "default": "\"down\"",
+          "default": "[\"j\", \"down\"]",
           "description": "Move workspace selection down in navigate mode."
         },
         {
@@ -568,13 +574,13 @@
         {
           "key": "keys.navigate_pane_down",
           "type": "keybinding",
-          "default": "\"j\"",
+          "default": "\"ctrl+j\"",
           "description": "Focus the pane below in navigate mode."
         },
         {
           "key": "keys.navigate_pane_up",
           "type": "keybinding",
-          "default": "\"k\"",
+          "default": "\"ctrl+k\"",
           "description": "Focus the pane above in navigate mode."
         },
         {

@@ -25,6 +25,7 @@ Press `prefix+?` at any time to see every active binding. Press `/` in the keybi
 | Split right / down | `prefix+v` / `prefix+minus` |
 | Move between panes | `prefix+h/j/k/l` |
 | Workspace navigation | `prefix+w` |
+| Agent sidebar navigation | `prefix+a` |
 | Detach, leave everything running | `prefix+q` |
 
 These cover most daily movement. Everything else can stay on the mouse.
@@ -64,7 +65,9 @@ The full keymap and the binding syntax live in the [keybinding reference](/docs/
 
 The Goto picker (`prefix+g`) lists each agent or terminal on its own row, grouped by workspace. Split tabs never hide their panes behind another row. Click a row or press Enter to jump directly to it. Press `/` to search names, agent kinds, tabs, workspaces, branches, or paths; use Up/Down or `j/k` to move between rows when not typing a search. Left/Right jumps to the first agent or terminal in the previous/next workspace section, without wrapping. While editing a search, Left/Right moves the text cursor instead. Outside search, `b/w/i/d` filter blocked, working, idle, or done agents, and `a` shows all terminals again. The selected destination's location and path appear below the list. When the list overflows, use the mouse wheel, click the scrollbar track, or drag its thumb to scroll without opening a destination.
 
-Press Esc or Ctrl+[ to leave workspace navigation. In the Go To picker, `/` also opens search on layouts that require Shift to type it.
+Press `prefix+w` to select a workspace in the sidebar, or `prefix+a` to select an agent. Inside navigation, `a` and `w` switch between the agents and spaces sections without changing the active pane. Both sections move with `j/k` or Up/Down. Enter opens the selected destination. In spaces navigation, `h/l` and `ctrl+j/ctrl+k` focus panes and Tab cycles panes. The agent list follows its displayed sort and filters, skips disconnected machines, and scrolls to reveal the selection. Entering agent navigation expands a collapsed sidebar.
+
+Press Esc or Ctrl+[ to leave sidebar navigation without switching. In the Go To picker, `/` also opens search on layouts that require Shift to type it.
 
 Pane input follows the keyboard modes requested by the app. Plain shells receive Ctrl+Shift+letter as its control byte; Super, Hyper, and Meta chords are dropped when the pane cannot represent them. Apps using Kitty keyboard input receive the modifiers and key events they request. Without report-all mode, modified Enter, Tab, and Backspace do not receive release reports. Keypad keys and modifier-only presses are not forwarded.
 

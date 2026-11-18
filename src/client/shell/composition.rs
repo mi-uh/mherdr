@@ -35,7 +35,9 @@ impl ClientShellState {
         } else {
             Rect::new(0, 1, cols, rows.saturating_sub(2))
         };
+        let selected_agent = self.selected_navigation_agent().cloned();
         let valid_navigation_target = self.mode == ClientShellMode::Navigate
+            && self.agent_navigation.is_none()
             && self
                 .navigate_workspace_id
                 .as_ref()
@@ -74,6 +76,7 @@ impl ClientShellState {
                 .as_ref()
                 .filter(|_| valid_navigation_target)
                 .or_else(|| pending_workspace_highlight.map(|pending| &pending.target)),
+            selected_agent_id: selected_agent.as_ref(),
             reveal_navigation_workspace: &mut self.reveal_navigation_workspace,
             dragged_workspace_id: None,
             workspace_drop_indicator_row: None,
@@ -97,6 +100,13 @@ impl ClientShellState {
                 &mut self.hits,
             );
         }
+        super::agent_navigation::render_agent_navigation_highlight(
+            &mut buffer,
+            &self.hits,
+            selected_agent.as_ref(),
+            &self.active_endpoint_id,
+            &self.config.palette,
+        );
         if !self.config.mouse_capture {
             self.hits = ShellHitMap::default();
         }
@@ -129,6 +139,7 @@ impl ClientShellState {
             &mut buffer,
             Rect::new(0, 0, cols, rows),
             self.mode,
+            self.agent_navigation.is_some(),
             None,
             self.endpoint_error.as_deref(),
             false,
@@ -154,12 +165,15 @@ impl ClientShellState {
     ) -> Option<crate::client::frame_output::ComposedFrame> {
         self.last_composed_at = Some(std::time::Instant::now());
         self.selection_repaint_deadline = None;
+        self.prepare_agent_navigation_layout(cols, rows);
         if self.last_composed_size != Some((cols, rows)) && self.mode == ClientShellMode::Navigate {
             self.reveal_navigation_workspace = true;
             self.reveal_mobile_workspace = true;
         }
         self.last_composed_size = Some((cols, rows));
+        let selected_agent = self.selected_navigation_agent().cloned();
         let valid_navigation_target = self.mode == ClientShellMode::Navigate
+            && self.agent_navigation.is_none()
             && self
                 .navigate_workspace_id
                 .as_ref()
@@ -230,6 +244,7 @@ impl ClientShellState {
                     .as_ref()
                     .filter(|_| valid_navigation_target)
                     .or_else(|| pending_workspace_highlight.map(|pending| &pending.target)),
+                selected_agent_id: selected_agent.as_ref(),
                 reveal_navigation_workspace: &mut self.reveal_navigation_workspace,
                 dragged_workspace_id,
                 workspace_drop_indicator_row,
@@ -325,6 +340,7 @@ impl ClientShellState {
                 &mut buffer,
                 mode_bar_area,
                 self.mode,
+                self.agent_navigation.is_some(),
                 self.copy_mode.as_ref(),
                 self.endpoint_error.as_deref(),
                 snapshot.update_available.is_some(),
@@ -610,6 +626,7 @@ impl ClientShellState {
                 self.navigate_workspace_id
                     .as_ref()
                     .filter(|_| valid_navigation_target),
+                selected_agent.as_ref(),
                 &mut self.mobile_switcher_scroll,
                 &mut self.reveal_mobile_workspace,
                 &mut self.hits,

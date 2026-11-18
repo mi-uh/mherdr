@@ -368,6 +368,7 @@ pub(super) fn render_mobile_switcher(
     active_endpoint_id: &ClientEndpointId,
     config: &ClientShellConfig,
     selected_workspace_id: Option<&WorkspaceNavigationTarget>,
+    selected_agent_id: Option<&super::agent_navigation::AgentNavigationTarget>,
     scroll: &mut usize,
     reveal_workspace: &mut bool,
     hits: &mut ShellHitMap,
@@ -448,17 +449,23 @@ pub(super) fn render_mobile_switcher(
     let max_scroll = total_rows.saturating_sub(usize::from(viewport.height));
     *scroll = (*scroll).min(max_scroll);
     if *reveal_workspace {
-        if let Some(selected_workspace_id) = selected_workspace_id {
+        if selected_workspace_id.is_some() || selected_agent_id.is_some() {
             let mut start = 0usize;
             for item in &items {
                 let end = start.saturating_add(item.lines.len());
-                if matches!(
+                let selected_workspace = matches!(
                     item.target.as_ref(),
                     Some(ClientMobileTarget::Workspace {
                         endpoint_id,
                         workspace_id,
-                    }) if selected_workspace_id.matches(endpoint_id, workspace_id)
-                ) {
+                    }) if selected_workspace_id.is_some_and(|selected| selected.matches(endpoint_id, workspace_id))
+                );
+                let selected_agent = matches!(
+                    item.target.as_ref(),
+                    Some(ClientMobileTarget::Agent { endpoint_id, pane_id })
+                        if selected_agent_id.is_some_and(|selected| &selected.workspace.endpoint_id == endpoint_id && &selected.pane_id == pane_id)
+                );
+                if selected_workspace || selected_agent {
                     if start < *scroll {
                         *scroll = start;
                     } else if end > (*scroll).saturating_add(usize::from(viewport.height)) {
@@ -517,6 +524,16 @@ pub(super) fn render_mobile_switcher(
                 );
             }
             if let Some(target) = item.target {
+                if matches!(&target, ClientMobileTarget::Agent { endpoint_id, pane_id }
+                    if selected_agent_id.is_some_and(|selected| &selected.workspace.endpoint_id == endpoint_id && &selected.pane_id == pane_id))
+                {
+                    let background = if palette.selection_bg == ratatui::style::Color::Reset {
+                        palette.active_row_bg
+                    } else {
+                        palette.selection_bg
+                    };
+                    buffer.set_style(rect, Style::default().bg(background));
+                }
                 hits.mobile_targets.push((rect, target));
             }
         }
@@ -965,6 +982,7 @@ impl ClientShellState {
                 self.reveal_mobile_workspace = false;
                 self.pending_workspace_highlight = None;
                 self.mode = ClientShellMode::Navigate;
+                self.agent_navigation = None;
                 self.navigate_workspace_id = self.focused_navigation_target();
                 outcome.repaint = true;
                 return true;

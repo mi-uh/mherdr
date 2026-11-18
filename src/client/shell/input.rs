@@ -761,6 +761,37 @@ impl ClientShellState {
             return;
         }
 
+        // The picker bindings switch sections in place, so `a` and `w` mirror
+        // `prefix+a` and `prefix+w` without leaving navigate mode.
+        match crate::input::resolve_non_indexed_action(
+            &self.config.keybinds.keybinds,
+            key,
+            KeybindDispatch::Prefix,
+        ) {
+            Some(KeybindAction::AgentPicker) => {
+                if self.agent_navigation.is_none() {
+                    self.begin_agent_navigation(outcome);
+                }
+                return;
+            }
+            Some(KeybindAction::WorkspacePicker) => {
+                if self.agent_navigation.take().is_some() {
+                    if self.navigate_workspace_id.is_none() {
+                        self.navigate_workspace_id = self.focused_navigation_target();
+                    }
+                    self.reveal_navigation_workspace = true;
+                    self.reveal_mobile_workspace = true;
+                    outcome.repaint = true;
+                }
+                return;
+            }
+            _ => {}
+        }
+        if self.agent_navigation.is_some() {
+            self.route_agent_navigation_key(key, outcome);
+            return;
+        }
+
         if self
             .config
             .keybinds
@@ -935,6 +966,7 @@ impl ClientShellState {
     fn cancel_navigate(&mut self, outcome: &mut ClientShellInput) {
         self.mode = self.copy_or_terminal_mode();
         self.navigate_workspace_id = None;
+        self.agent_navigation = None;
         outcome.repaint = true;
     }
 

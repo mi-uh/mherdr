@@ -901,6 +901,7 @@ pub(crate) struct ClientShellState {
     pub(super) collapsed_endpoints: HashSet<ClientEndpointId>,
     pub(super) mode: ClientShellMode,
     pub(super) navigate_workspace_id: Option<WorkspaceNavigationTarget>,
+    pub(super) agent_navigation: Option<super::agent_navigation::AgentNavigation>,
     pub(super) pending_workspace_highlight: Option<PendingWorkspaceHighlight>,
     pub(super) reveal_navigation_workspace: bool,
     pub(super) overlay: Option<ClientShellOverlay>,
@@ -1075,6 +1076,7 @@ impl ClientShellState {
             collapsed_endpoints: HashSet::new(),
             mode: ClientShellMode::Terminal,
             navigate_workspace_id: None,
+            agent_navigation: None,
             pending_workspace_highlight: None,
             reveal_navigation_workspace: false,
             overlay,
@@ -1237,6 +1239,7 @@ impl ClientShellState {
     }
 
     pub(super) fn reset_endpoint_projection(&mut self) {
+        self.agent_navigation = None;
         self.hits = ShellHitMap::default();
         self.pane_surface = None;
         self.pending_pane_surface = None;
@@ -1383,8 +1386,12 @@ impl ClientShellState {
             let preview = (self.mode == ClientShellMode::Navigate)
                 .then(|| self.navigate_workspace_id.take())
                 .flatten();
+            let agent_preview = (self.mode == ClientShellMode::Navigate)
+                .then(|| self.agent_navigation.take())
+                .flatten();
             self.reset_endpoint_projection();
             self.navigate_workspace_id = preview;
+            self.agent_navigation = agent_preview;
         } else if let Some(previous) = self
             .snapshot
             .as_deref()

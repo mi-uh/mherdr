@@ -355,17 +355,19 @@ pub struct KeysConfig {
     pub close_workspace: BindingConfig,
     /// Open the workspace navigation surface. Default: "prefix+w"
     pub workspace_picker: BindingConfig,
+    /// Open keyboard navigation in the agent sidebar. Default: "prefix+a".
+    pub agent_picker: BindingConfig,
     /// Open the session navigator. Default: "prefix+g"
     pub goto: BindingConfig,
-    /// Move workspace selection up in navigate mode. Default: "up".
+    /// Move workspace selection up in navigate mode. Default: ["k", "up"].
     pub navigate_workspace_up: BindingConfig,
-    /// Move workspace selection down in navigate mode. Default: "down".
+    /// Move workspace selection down in navigate mode. Default: ["j", "down"].
     pub navigate_workspace_down: BindingConfig,
     /// Focus the pane to the left in navigate mode. Default: "h". Left arrow is always an alias.
     pub navigate_pane_left: BindingConfig,
-    /// Focus the pane below in navigate mode. Default: "j".
+    /// Focus the pane below in navigate mode. Default: "ctrl+j".
     pub navigate_pane_down: BindingConfig,
-    /// Focus the pane above in navigate mode. Default: "k".
+    /// Focus the pane above in navigate mode. Default: "ctrl+k".
     pub navigate_pane_up: BindingConfig,
     /// Focus the pane to the right in navigate mode. Default: "l". Right arrow is always an alias.
     pub navigate_pane_right: BindingConfig,
@@ -492,6 +494,8 @@ pub(crate) struct KeysConfigOverlay {
     close_workspace: Option<BindingConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     workspace_picker: Option<BindingConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    agent_picker: Option<BindingConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     goto: Option<BindingConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -653,6 +657,7 @@ impl<'de> Deserialize<'de> for KeysConfig {
         apply_field!(rename_workspace);
         apply_field!(close_workspace);
         apply_field!(workspace_picker);
+        apply_field!(agent_picker);
         apply_field!(goto);
         apply_field!(navigate_workspace_up);
         apply_field!(navigate_workspace_down);
@@ -758,6 +763,7 @@ impl KeysConfig {
         copy_effective_action_field!(rename_workspace, keybinds.rename_workspace);
         copy_effective_action_field!(close_workspace, keybinds.close_workspace);
         copy_effective_action_field!(workspace_picker, keybinds.workspace_picker);
+        copy_effective_action_field!(agent_picker, keybinds.agent_picker);
         copy_effective_action_field!(goto, keybinds.goto);
         copy_effective_action_field!(navigate_workspace_up, keybinds.navigate.workspace_up);
         copy_effective_action_field!(navigate_workspace_down, keybinds.navigate.workspace_down);
@@ -1130,12 +1136,13 @@ impl Default for KeysConfig {
             rename_workspace: BindingConfig::one("prefix+shift+w"),
             close_workspace: BindingConfig::one("prefix+shift+d"),
             workspace_picker: BindingConfig::one("prefix+w"),
+            agent_picker: BindingConfig::one("prefix+a"),
             goto: BindingConfig::one("prefix+g"),
-            navigate_workspace_up: BindingConfig::one("up"),
-            navigate_workspace_down: BindingConfig::one("down"),
+            navigate_workspace_up: BindingConfig::Many(vec!["k".into(), "up".into()]),
+            navigate_workspace_down: BindingConfig::Many(vec!["j".into(), "down".into()]),
             navigate_pane_left: BindingConfig::one("h"),
-            navigate_pane_down: BindingConfig::one("j"),
-            navigate_pane_up: BindingConfig::one("k"),
+            navigate_pane_down: BindingConfig::one("ctrl+j"),
+            navigate_pane_up: BindingConfig::one("ctrl+k"),
             navigate_pane_right: BindingConfig::one("l"),
             detach: BindingConfig::one("prefix+q"),
             reload_config: BindingConfig::one("prefix+shift+r"),

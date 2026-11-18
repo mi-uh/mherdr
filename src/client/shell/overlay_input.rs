@@ -894,6 +894,7 @@ impl ClientShellState {
             } else if key.code == KeyCode::Esc {
                 self.overlay = None;
                 self.mode = ClientShellMode::Navigate;
+                self.agent_navigation = None;
                 self.navigate_workspace_id = self.focused_navigation_target();
                 self.reveal_navigation_workspace = true;
                 outcome.repaint = true;
