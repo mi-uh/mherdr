@@ -1488,7 +1488,7 @@
           "key": "advanced.max_fps",
           "type": "integer",
           "default": "60",
-          "description": "Maximum frames per second sent to clients while output changes. Set it to your display refresh rate (for example 144) for smoother scrolling and fast output, at the cost of more CPU during that output. Values are clamped to 30-240."
+          "description": "Maximum frames per second sent to clients for half a second after keyboard, mouse or resize input. Set it to your display refresh rate (for example 144) for smoother scrolling and typing. Output without input stays at 60 fps, so busy agents cost no extra CPU. Values are clamped to 30-240."
         }
       ]
     },

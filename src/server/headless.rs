@@ -1855,6 +1855,9 @@ impl HeadlessServer {
         if self.handoff_in_progress && Self::ignore_client_event_during_handoff(&ev) {
             return false;
         }
+        if is_user_activity(&ev) {
+            self.app.note_user_activity(Instant::now());
+        }
 
         match ev {
             ServerEvent::ClientConnected {
@@ -3418,6 +3421,18 @@ fn client_pane_input_releases_press(event: &protocol::ClientPaneInputEvent) -> b
             kind: protocol::ClientMouseKind::Up(_),
             ..
         }
+    )
+}
+
+/// Client events caused by the user, which keep frames at `advanced.max_fps`
+/// for a moment. Output, metadata and background work are not activity.
+fn is_user_activity(ev: &ServerEvent) -> bool {
+    matches!(
+        ev,
+        ServerEvent::ClientShellPaneInput { .. }
+            | ServerEvent::ClientShellPopupInput { .. }
+            | ServerEvent::ClientShellEndpointRequest { .. }
+            | ServerEvent::ClientShellResize { .. }
     )
 }
 

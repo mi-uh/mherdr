@@ -13,6 +13,7 @@
 | `48a79f7c` | client sends requests to the server before composing its own frame     |
 | `877a53f2` | cell symbols stored inline (CompactString) instead of one heap string  |
 | `d8ef0db7` | tab surfaces rendered without a ratatui flush and extra copies          |
+| (branch)   | `max_fps` applies for 0.5 s after input; output alone stays at 60 fps  |
 
 The wire protocol is unchanged, but run client and server from the same build.
 
@@ -34,6 +35,18 @@ release build is faster still), mherdr with `MAX_FPS=144`:
 | `fps`    | frames per second, wheel event every 8 ms        | 58           | 125          |
 | `echo`   | keypress until the shell's echo arrives          | 1.8 ms       | 1.8 ms       |
 | `flood`  | `seq 1 5000000`: duration, herdr CPU             | 6.0 s, 103 % | 5.9 s, 108 % |
+
+With the adaptive frame rate (branch `perf/adaptive-fps`, measured against
+mherdr `a1da0275`, both without LTO, `MAX_FPS=144`, two rounds each):
+
+| test     | what is measured                                 | before       | after        |
+| -------- | ------------------------------------------------ | ------------ | ------------ |
+| `stream` | steady output, no input: frames/s, herdr CPU     | 101 fps, 21 % | 51 fps, 16 % |
+| `flood`  | `seq 1 5000000`: duration, herdr CPU             | 5.9 s, 108 % | 6.0 s, 100 % |
+| `fps`    | frames per second, wheel event every 8 ms        | 125          | 125          |
+| `wheel`  | one wheel step until its frame (p50)             | 2.7 ms       | 2.8 ms       |
+| `switch` | `ctrl+b n` until the last frame of the new tab   | 6.7 ms       | 6.9 ms       |
+| `echo`   | keypress until the shell's echo arrives (p50)    | 2.0 ms       | 2.0 ms       |
 
 A plain bash in the same pseudo terminal echoes in about 0.4 ms. The rest of
 the echo time is the client/server round trip every multiplexer has; mherdr
@@ -60,8 +73,10 @@ also `just bench-render-scale`.
 ## trade-offs
 
 - **CPU while scrolling** — 144 fps means more frames: wheel scrolling uses
-  about 40 % of one core instead of 25 %. Idle cost is unchanged. Use a lower
-  `max_fps` on battery or slow SSH links.
+  about 40 % of one core instead of 25 %. Idle cost is unchanged. The high
+  rate only applies for 0.5 s after keyboard, mouse or resize input; output
+  without input (busy agents) stays at 60 fps. Use a lower `max_fps` on
+  battery or slow SSH links.
 - **build time** — fat LTO turns a few minutes into 20+ minutes.
 - **key change** — in navigate mode `j`/`k` now move through spaces/agents;
   pane focus up/down is `ctrl+j`/`ctrl+k`.

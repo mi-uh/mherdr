@@ -1060,9 +1060,10 @@ pub struct AdvancedConfig {
     /// Maximum scrollback buffer size in bytes retained per pane terminal. Default: 10000000.
     #[serde(alias = "scrollback_lines")]
     pub scrollback_limit_bytes: usize,
-    /// Maximum frames per second sent to clients while output changes. Higher
-    /// values make scrolling and fast output smoother on high-refresh displays
-    /// at the cost of more CPU during that output. Clamped to 30-240. Default: 60.
+    /// Maximum frames per second sent to clients for half a second after
+    /// keyboard, mouse or resize input. Higher values make scrolling and typing
+    /// smoother on high-refresh displays; output without input stays at 60 fps
+    /// so busy agents cost no extra CPU. Clamped to 30-240. Default: 60.
     pub max_fps: u16,
 }
 

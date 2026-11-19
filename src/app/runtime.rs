@@ -1,9 +1,12 @@
-use std::time::Instant;
-
-#[cfg(test)]
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use super::{background_update_check_enabled, App, AUTO_UPDATE_CHECK_INTERVAL};
+
+/// Frame interval outside of user interaction: the historical 60 fps.
+pub(crate) const IDLE_RENDER_INTERVAL: Duration = Duration::from_millis(16);
+/// How long after user input frames keep the `advanced.max_fps` rate. Long
+/// enough to bridge gaps between wheel events and keystrokes.
+pub(crate) const FAST_RENDER_WINDOW: Duration = Duration::from_millis(500);
 fn retain_detached_process_after_wait(
     pid: u32,
     result: std::io::Result<Option<std::process::ExitStatus>>,
@@ -69,9 +72,30 @@ impl App {
         self.sync_agent_metadata_deadline();
     }
 
+    /// Keep rendering at `advanced.max_fps` for a short while after user
+    /// input (keys, wheel, clicks, resizes, client requests).
+    pub(crate) fn note_user_activity(&mut self, now: Instant) {
+        self.fast_render_until = Some(now + FAST_RENDER_WINDOW);
+    }
+
+    /// `advanced.max_fps` shortly after user input, otherwise at most 60 fps.
+    /// With `max_fps` at or below 60 this is always `render_interval`.
+    pub(crate) fn current_render_interval(&self, now: Instant) -> Duration {
+        if self
+            .fast_render_until
+            .is_some_and(|fast_until| now < fast_until)
+        {
+            self.render_interval
+        } else {
+            self.render_interval.max(IDLE_RENDER_INTERVAL)
+        }
+    }
+
     pub(crate) fn can_render_now(&self, now: Instant) -> bool {
         match self.last_render_at {
-            Some(last_render_at) => now.duration_since(last_render_at) >= self.render_interval,
+            Some(last_render_at) => {
+                now.duration_since(last_render_at) >= self.current_render_interval(now)
+            }
             None => true,
         }
     }
@@ -79,7 +103,7 @@ impl App {
     pub(crate) fn can_present_now(&self, now: Instant) -> bool {
         match self.last_presentation_at {
             Some(last_presentation_at) => {
-                now.duration_since(last_presentation_at) >= self.render_interval
+                now.duration_since(last_presentation_at) >= self.current_render_interval(now)
             }
             None => true,
         }
@@ -146,7 +170,7 @@ impl App {
     ) -> Option<Instant> {
         let render_deadline = if needs_render {
             self.last_render_at
-                .map(|last_render_at| last_render_at + self.render_interval)
+                .map(|last_render_at| last_render_at + self.current_render_interval(now))
                 .filter(|deadline| *deadline > now)
         } else {
             None
@@ -214,6 +238,50 @@ impl App {
 mod tests {
     use super::*;
     use crate::workspace::Workspace;
+
+    #[test]
+    fn high_max_fps_applies_only_shortly_after_user_activity() {
+        let (mut app, _) = test_app_with_pane();
+        app.render_interval = Duration::from_millis(6); // max_fps = 144
+        let start = Instant::now();
+        app.record_render_attempt(start, true);
+
+        // Output alone keeps the 60 fps cadence.
+        let soon = start + Duration::from_millis(7);
+        assert_eq!(app.current_render_interval(soon), IDLE_RENDER_INTERVAL);
+        assert!(!app.can_render_now(soon));
+        assert!(!app.can_present_now(soon));
+        assert_eq!(
+            app.next_headless_loop_deadline_with_git_refresh(start, true, false),
+            Some(start + IDLE_RENDER_INTERVAL)
+        );
+
+        // User input switches to max_fps for the activity window.
+        app.note_user_activity(start);
+        assert_eq!(app.current_render_interval(soon), Duration::from_millis(6));
+        assert!(app.can_render_now(soon));
+        assert!(app.can_present_now(soon));
+        assert_eq!(
+            app.next_headless_loop_deadline_with_git_refresh(start, true, false),
+            Some(start + Duration::from_millis(6))
+        );
+
+        // After the window, frames fall back to 60 fps.
+        let later = start + FAST_RENDER_WINDOW;
+        assert_eq!(app.current_render_interval(later), IDLE_RENDER_INTERVAL);
+    }
+
+    #[test]
+    fn max_fps_at_or_below_60_ignores_activity() {
+        let (mut app, _) = test_app_with_pane();
+        let now = Instant::now();
+        app.render_interval = Duration::from_millis(16);
+        assert_eq!(app.current_render_interval(now), Duration::from_millis(16));
+        app.note_user_activity(now);
+        assert_eq!(app.current_render_interval(now), Duration::from_millis(16));
+        app.render_interval = Duration::from_millis(33); // max_fps = 30
+        assert_eq!(app.current_render_interval(now), Duration::from_millis(33));
+    }
 
     #[test]
     fn hidden_render_attempt_keeps_presentation_cadence_available() {

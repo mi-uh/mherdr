@@ -160,6 +160,10 @@ pub struct App {
     pub(crate) last_render_at: Option<Instant>,
     /// Minimum time between rendered frames, from `advanced.max_fps`.
     pub(crate) render_interval: Duration,
+    /// Frames are only rendered at `render_interval` until this instant, which
+    /// user input extends; otherwise they fall back to
+    /// `IDLE_RENDER_INTERVAL` so output-only phases cost no more than 60 fps.
+    pub(crate) fast_render_until: Option<Instant>,
     /// Last attempt that could update a connected presentation surface.
     pub(crate) last_presentation_at: Option<Instant>,
     pub render_notify: Arc<Notify>,
@@ -689,6 +693,7 @@ impl App {
             persist_pane_history: config.experimental.pane_history,
             last_render_at: None,
             render_interval: config.advanced.render_interval(),
+            fast_render_until: None,
             last_presentation_at: None,
             api_rx,
             event_hub,
