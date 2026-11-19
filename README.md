@@ -1,17 +1,17 @@
 # mherdr
 
 A personal fork of [herdr](https://github.com/herdrdev/herdr) that aims to feel
-as responsive as a plain terminal, with vim-style keyboard navigation for
-spaces and agents. For features, install options and usage see the
+as responsive as a plain terminal and extends herdr's vim-style navigation from
+panes to spaces and agents. Everything else works as in herdr; more in the
 [original README](https://github.com/herdrdev/herdr#readme) and
-[herdr.dev/docs](https://herdr.dev/docs/).
+[docs](https://herdr.dev/docs/).
 
 ## what's different
 
-- **vim navigation for spaces and agents** — `prefix+w` jumps into spaces,
-  `prefix+a` into agents; `j`/`k` move, `a`/`w` switch between the two,
-  `enter` opens. Pane focus up/down in navigate mode moves to
-  `ctrl+j`/`ctrl+k`.
+- **vim navigation everywhere** — `prefix+w` jumps into the space list,
+  `prefix+a` into the agent list. There `j`/`k` move, `enter` opens, and `a` or
+  `w` jumps straight to the other list. Panes keep `h`/`l`; pane up/down moves
+  to `ctrl+j`/`ctrl+k` because `j`/`k` now drive the lists.
 - **higher frame rate** — upstream renders at most ~60 fps, which feels
   sluggish on 120/144 Hz screens. Set your display's refresh rate in
   `~/.config/herdr/config.toml` (default 60, range 30–240):
@@ -47,6 +47,7 @@ Install as `mherdr` next to the original `herdr`:
 ```bash
 ln -sf "$PWD/target/release/herdr" ~/.local/bin/mherdr
 mherdr server stop      # after a rebuild: restart the server to pick it up
+mherdr
 ```
 
 Both share the config and the default session. To run them at the same time,
