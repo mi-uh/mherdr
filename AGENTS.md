@@ -6,7 +6,7 @@ Terminal based agent runtime for coding agents.
 
 This checkout is mherdr, a personal fork of herdr (`github.com/mi-uh/mherdr`).
 The rest of this file is upstream's guidance and stays mostly unchanged to keep
-rebases simple. For this fork:
+upstream merges simple. For this fork:
 
 - The architecture principles, performance rules, protocol contracts, testing
   and code conventions below apply unchanged.
@@ -18,6 +18,10 @@ rebases simple. For this fork:
   mherdr is built from source.
 - Fork changes and their measurements are listed in `MHERDR.md`; keep it current
   when adding fork commits.
+- Upstream changes come in as merges, never rebases:
+  `.github/workflows/mherdr-upstream-sync.yml` opens a weekly `upstream-sync`
+  pull request that is taken as a fast-forward (no squash/rebase). Upstream is
+  fetch-only; never push, open issues or pull requests there.
 
 ## Scope and Audience
 
