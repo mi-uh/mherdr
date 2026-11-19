@@ -104,6 +104,20 @@ jobs:
       - name: Remove Zig caches
         run: rm -rf .zig-cache vendor/libghostty-vt/.zig-cache vendor/libghostty-vt/zig-out
 
+      # deps.files.ghostty.org sometimes resets connections; fetch the Zig
+      # dependencies into the global cache with retries before the real build.
+      - name: Prefetch Zig dependencies
+        working-directory: vendor/libghostty-vt
+        env:
+          ZIG_LOCAL_CACHE_DIR: ${{ runner.temp }}/zig-local-cache
+        run: |
+          for attempt in 1 2 3 4 5; do
+            zig build --fetch=all && exit 0
+            echo "fetch attempt $attempt failed, retrying" >&2
+            sleep $((attempt * 15))
+          done
+          exit 1
+
       - name: Build
         env:
           MHERDR_RELEASE: ${{ github.ref_name }}
