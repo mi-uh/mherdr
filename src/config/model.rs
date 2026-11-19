@@ -1060,6 +1060,20 @@ pub struct AdvancedConfig {
     /// Maximum scrollback buffer size in bytes retained per pane terminal. Default: 10000000.
     #[serde(alias = "scrollback_lines")]
     pub scrollback_limit_bytes: usize,
+    /// Maximum frames per second sent to clients while output changes. Higher
+    /// values make scrolling and fast output smoother on high-refresh displays
+    /// at the cost of more CPU during that output. Clamped to 30-240. Default: 60.
+    pub max_fps: u16,
+}
+
+impl AdvancedConfig {
+    pub(crate) const DEFAULT_MAX_FPS: u16 = 60;
+
+    /// Minimum time between rendered frames. 60 fps keeps the historical 16 ms.
+    pub(crate) fn render_interval(&self) -> std::time::Duration {
+        let fps = u64::from(self.max_fps.clamp(30, 240));
+        std::time::Duration::from_millis(1000 / fps)
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -1333,6 +1347,7 @@ impl Default for AdvancedConfig {
     fn default() -> Self {
         Self {
             scrollback_limit_bytes: DEFAULT_SCROLLBACK_LIMIT_BYTES,
+            max_fps: Self::DEFAULT_MAX_FPS,
         }
     }
 }
@@ -1340,6 +1355,25 @@ impl Default for AdvancedConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn max_fps_maps_to_render_interval_and_clamps() {
+        let interval = |max_fps| {
+            AdvancedConfig {
+                max_fps,
+                ..AdvancedConfig::default()
+            }
+            .render_interval()
+        };
+        assert_eq!(AdvancedConfig::default().max_fps, 60);
+        assert_eq!(interval(60), std::time::Duration::from_millis(16));
+        assert_eq!(interval(120), std::time::Duration::from_millis(8));
+        assert_eq!(interval(144), std::time::Duration::from_millis(6));
+        assert_eq!(interval(0), std::time::Duration::from_millis(33));
+        assert_eq!(interval(u16::MAX), std::time::Duration::from_millis(4));
+        let parsed: Config = toml::from_str("[advanced]\nmax_fps = 144\n").unwrap();
+        assert_eq!(parsed.advanced.max_fps, 144);
+    }
 
     #[test]
     fn update_config_defaults_and_parses() {

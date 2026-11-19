@@ -1483,6 +1483,12 @@
           "type": "integer",
           "default": "10000000",
           "description": "Maximum scrollback buffer size in bytes retained per pane terminal. The legacy key name `scrollback_lines` is accepted as an alias."
+        },
+        {
+          "key": "advanced.max_fps",
+          "type": "integer",
+          "default": "60",
+          "description": "Maximum frames per second sent to clients while output changes. Set it to your display refresh rate (for example 144) for smoother scrolling and fast output, at the cost of more CPU during that output. Values are clamped to 30-240."
         }
       ]
     },

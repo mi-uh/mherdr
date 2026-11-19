@@ -10,7 +10,7 @@ impl HeadlessServer {
 
     pub(super) fn can_render_interactive(&self, now: Instant) -> bool {
         if self.interactive_render_budget.is_some_and(|(epoch, used)| {
-            now.duration_since(epoch) < crate::app::MIN_RENDER_INTERVAL
+            now.duration_since(epoch) < self.app.render_interval
                 && used >= INTERACTIVE_RENDER_BUDGET
         }) {
             return false;
@@ -26,7 +26,7 @@ impl HeadlessServer {
 
     pub(super) fn record_interactive_render(&mut self, now: Instant) {
         let (epoch, used) = self.interactive_render_budget.get_or_insert((now, 0));
-        if now.duration_since(*epoch) >= crate::app::MIN_RENDER_INTERVAL {
+        if now.duration_since(*epoch) >= self.app.render_interval {
             *epoch = now;
             *used = 0;
         }

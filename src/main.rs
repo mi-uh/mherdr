@@ -444,6 +444,9 @@ pane_history = false
 # Maximum scrollback buffer size in bytes retained per pane terminal.
 # Matches Ghostty's default scrollback-limit behavior.
 # scrollback_limit_bytes = 10000000
+# Maximum frames per second sent to clients while output changes. Match your
+# display refresh rate (e.g. 144) for smoother scrolling; costs more CPU then.
+# max_fps = 60
 "##;
 
 // Bundled at build time so the printed skill always matches this binary's release.
