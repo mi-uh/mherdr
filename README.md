@@ -1,25 +1,26 @@
 # mherdr
 
 A personal fork of [herdr](https://github.com/herdrdev/herdr) that aims to feel
-as responsive as a plain terminal, plus a few keyboard shortcuts. For features,
-install options and usage see the
+as responsive as a plain terminal, with vim-style keyboard navigation for
+spaces and agents. For features, install options and usage see the
 [original README](https://github.com/herdrdev/herdr#readme) and
 [herdr.dev/docs](https://herdr.dev/docs/).
 
 ## what's different
 
-- **higher frame rate** — `max_fps` in `[advanced]` (default 60, range 30–240).
-  Upstream is fixed at about 60 fps, which feels sluggish on 120/144 Hz screens.
+- **vim navigation for spaces and agents** — `prefix+w` jumps into spaces,
+  `prefix+a` into agents; `j`/`k` move, `a`/`w` switch between the two,
+  `enter` opens. Pane focus up/down in navigate mode moves to
+  `ctrl+j`/`ctrl+k`.
+- **higher frame rate** — upstream renders at most ~60 fps, which feels
+  sluggish on 120/144 Hz screens. Set your display's refresh rate in
+  `~/.config/herdr/config.toml` (default 60, range 30–240):
+  ```toml
+  [advanced]
+  max_fps = 144
+  ```
 - **faster rendering** — less copying and allocation per frame, wheel scrolling
   without full redraws, release builds with fat LTO.
-- **keyboard navigation** — `prefix+w` spaces and `prefix+a` agents in the
-  sidebar; `j`/`k` or arrows move, `a`/`w` switch sections, `enter` opens. In
-  navigate mode pane focus up/down moves to `ctrl+j`/`ctrl+k`.
-
-```toml
-[advanced]
-max_fps = 144   # match your display
-```
 
 ## measured
 
@@ -38,9 +39,19 @@ methodology and trade-offs: [MHERDR.md](MHERDR.md).
 ## build
 
 ```bash
-cargo build --release                # fat LTO: expect 20+ minutes
-./target/release/herdr server stop   # restart a running server to pick it up
+cargo build --release   # fat LTO: expect 20+ minutes
 ```
+
+Install as `mherdr` next to the original `herdr`:
+
+```bash
+ln -sf "$PWD/target/release/herdr" ~/.local/bin/mherdr
+mherdr server stop      # after a rebuild: restart the server to pick it up
+```
+
+Both share the config and the default session. To run them at the same time,
+give mherdr its own session: `mherdr --session m` (stop it with
+`mherdr --session m server stop`).
 
 ## license
 
