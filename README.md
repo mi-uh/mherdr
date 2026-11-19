@@ -54,6 +54,9 @@ Both share the config and the default session. To run them at the same time,
 give mherdr its own session: `mherdr --session m` (stop it with
 `mherdr --session m server stop`).
 
+`herdr update` is disabled in mherdr because it would replace the build with
+upstream herdr. Update with `git pull` and a rebuild instead.
+
 ## license
 
 Apache License 2.0, like herdr — see [LICENSE](LICENSE).

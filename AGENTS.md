@@ -2,6 +2,23 @@
 
 Terminal based agent runtime for coding agents.
 
+## mherdr fork
+
+This checkout is mherdr, a personal fork of herdr (`github.com/mi-uh/mherdr`).
+The rest of this file is upstream's guidance and stays mostly unchanged to keep
+rebases simple. For this fork:
+
+- The architecture principles, performance rules, protocol contracts, testing
+  and code conventions below apply unchanged.
+- Maintainer Workflow, Local Can Machine Workflow, Release Channels and the
+  External contributor guardrail describe upstream's repository and do not
+  apply here. Contributions to mherdr follow `CONTRIBUTING.md`. Never open
+  issues or pull requests against `herdrdev/herdr` on the user's behalf.
+- Self-update is disabled (`MHERDR_SELF_UPDATE_DISABLED` in `src/update.rs`);
+  mherdr is built from source.
+- Fork changes and their measurements are listed in `MHERDR.md`; keep it current
+  when adding fork commits.
+
 ## Scope and Audience
 
 These instructions are layered.
