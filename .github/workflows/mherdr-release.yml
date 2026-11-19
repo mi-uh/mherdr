@@ -129,8 +129,10 @@ jobs:
       - name: Check Linux binary is static
         if: runner.os == 'Linux'
         run: |
+          # Rust's musl targets produce static-pie binaries by default.
           file "${{ matrix.name }}" | tee file.txt
-          grep -q "statically linked" file.txt
+          grep -Eq "statically linked|static-pie linked" file.txt
+          ! grep -q "dynamically linked" file.txt
 
       - name: Check version identity
         if: matrix.native
