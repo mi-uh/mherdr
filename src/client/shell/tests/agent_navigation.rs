@@ -256,3 +256,117 @@ fn agent_navigation_mobile_reveals_selected_agent() {
     preview(&mut state, b"j");
     assert_agent(&state, &ClientEndpointId::Local, "pane_20");
 }
+
+/// Local state whose agents `pane_1..` have the given client-projected
+/// statuses. Done needs an observed working -> idle transition, so done agents
+/// are reported as working first and as idle in a second snapshot.
+fn waiting_state(statuses: &[AgentStatus], focused: usize) -> ClientShellState {
+    let mut state = local_state(statuses.len());
+    let mut snapshot = agent_snapshot(statuses.len());
+    snapshot.focused_pane_id = Some(format!("pane_{focused}"));
+    let first = |status: AgentStatus| match status {
+        AgentStatus::Done => AgentStatus::Working,
+        status => status,
+    };
+    for (agent, status) in snapshot.agents.iter_mut().zip(statuses) {
+        agent.agent_status = first(*status);
+    }
+    state.set_snapshot(Box::new(snapshot.clone()));
+    snapshot.revision += 1;
+    for (agent, status) in snapshot.agents.iter_mut().zip(statuses) {
+        if *status == AgentStatus::Done {
+            agent.agent_status = AgentStatus::Idle;
+            agent.state_change_seq += 10;
+        }
+    }
+    state.set_snapshot(Box::new(snapshot));
+    for (number, status) in statuses.iter().enumerate() {
+        let projected = state
+            .snapshot
+            .as_ref()
+            .and_then(|snapshot| {
+                snapshot
+                    .agents
+                    .iter()
+                    .find(|agent| agent.pane_id == format!("pane_{}", number + 1))
+            })
+            .map(|agent| agent.agent_status);
+        assert_eq!(projected, Some(*status), "pane_{}", number + 1);
+    }
+    state
+}
+
+fn focused_by_prefix_i(state: &mut ClientShellState) -> Option<String> {
+    preview(state, b"\x02");
+    let outcome = state.handle_input_bytes(b"i");
+    assert!(outcome.requests.is_empty());
+    match &outcome.actions[..] {
+        [] => None,
+        [ClientShellAction::Endpoint { request, .. }] => match &request.method {
+            crate::api::schema::Method::PaneFocus(target) => Some(target.pane_id.clone()),
+            other => panic!("unexpected method {other:?}"),
+        },
+        other => panic!("unexpected actions {other:?}"),
+    }
+}
+
+#[test]
+fn next_waiting_agent_prefers_blocked_then_done_and_skips_idle_and_working() {
+    use AgentStatus::*;
+    let mut state = waiting_state(&[Idle, Working, Done, Blocked], 1);
+    assert_eq!(focused_by_prefix_i(&mut state).as_deref(), Some("pane_4"));
+    assert_eq!(state.mode, ClientShellMode::Terminal);
+}
+
+#[test]
+fn next_waiting_agent_cycles_from_the_focused_waiting_agent() {
+    use AgentStatus::*;
+    let mut state = waiting_state(&[Blocked, Idle, Done, Blocked], 1);
+    // pane_1 is blocked and focused, so the next blocked agent comes first.
+    assert_eq!(focused_by_prefix_i(&mut state).as_deref(), Some("pane_4"));
+
+    let mut state = waiting_state(&[Blocked, Idle, Done, Blocked], 4);
+    // After the last blocked agent the done ones follow.
+    assert_eq!(focused_by_prefix_i(&mut state).as_deref(), Some("pane_3"));
+
+    let mut state = waiting_state(&[Blocked, Idle, Done, Blocked], 3);
+    // After the last waiting agent the list wraps around.
+    assert_eq!(focused_by_prefix_i(&mut state).as_deref(), Some("pane_1"));
+}
+
+#[test]
+fn next_waiting_agent_does_nothing_without_waiting_agents() {
+    use AgentStatus::*;
+    let mut state = waiting_state(&[Idle, Working, Idle], 2);
+    assert_eq!(focused_by_prefix_i(&mut state), None);
+    assert_eq!(state.mode, ClientShellMode::Terminal);
+}
+
+#[test]
+fn i_in_agent_navigation_selects_waiting_agents_without_focusing() {
+    use AgentStatus::*;
+    let mut state = waiting_state(&[Idle, Done, Working, Blocked], 1);
+    enter_agents(&mut state);
+    preview(&mut state, b"i");
+    assert_agent(&state, &ClientEndpointId::Local, "pane_4");
+    preview(&mut state, b"i");
+    assert_agent(&state, &ClientEndpointId::Local, "pane_2");
+    preview(&mut state, b"i");
+    assert_agent(&state, &ClientEndpointId::Local, "pane_4");
+    assert_eq!(
+        state.snapshot.as_ref().unwrap().focused_pane_id.as_deref(),
+        Some("pane_1")
+    );
+}
+
+#[test]
+fn i_in_workspace_navigation_switches_to_the_waiting_agent() {
+    use AgentStatus::*;
+    let mut state = waiting_state(&[Idle, Blocked], 1);
+    preview(&mut state, b"\x02");
+    preview(&mut state, b"w");
+    assert!(state.agent_navigation.is_none());
+    preview(&mut state, b"i");
+    assert!(state.agent_navigation.is_some());
+    assert_agent(&state, &ClientEndpointId::Local, "pane_2");
+}

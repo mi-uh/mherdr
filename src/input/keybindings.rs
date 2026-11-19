@@ -69,6 +69,7 @@ pub(crate) enum KeybindAction {
     Settings,
     ReloadConfig,
     OpenNotificationTarget,
+    NextWaitingAgent,
     Detach,
     OpenNavigator,
 }
@@ -153,6 +154,10 @@ pub(crate) fn resolve_non_indexed_action(
         (
             &keybinds.open_notification_target,
             KeybindAction::OpenNotificationTarget,
+        ),
+        (
+            &keybinds.next_waiting_agent,
+            KeybindAction::NextWaitingAgent,
         ),
         (&keybinds.detach, KeybindAction::Detach),
         (&keybinds.goto, KeybindAction::OpenNavigator),
@@ -261,6 +266,45 @@ mod tests {
     use crossterm::event::{KeyCode, KeyModifiers};
 
     use super::*;
+
+    #[test]
+    fn upstream_style_pane_keys_are_a_valid_config() {
+        // README documents this snippet to give j/k back to pane focus.
+        let config: crate::config::Config = toml::from_str(
+            "[keys]\nnavigate_workspace_up = \"up\"\nnavigate_workspace_down = \"down\"\nnavigate_pane_down = \"j\"\nnavigate_pane_up = \"k\"",
+        )
+        .unwrap();
+        assert!(config.collect_diagnostics().is_empty());
+        let navigate = config.keybinds().navigate;
+        let j = TerminalKey::new(KeyCode::Char('j'), KeyModifiers::empty());
+        let k = TerminalKey::new(KeyCode::Char('k'), KeyModifiers::empty());
+        assert!(!navigate.workspace_down.matches_direct_key(&j));
+        assert!(!navigate.workspace_up.matches_direct_key(&k));
+        assert!(navigate.pane_down.matches_direct_key(&j));
+        assert!(navigate.pane_up.matches_direct_key(&k));
+    }
+
+    #[test]
+    fn next_waiting_agent_defaults_to_prefix_i_and_is_configurable() {
+        let keybinds = crate::config::Config::default().keybinds();
+        assert!(matches!(
+            resolve_prefix_binding(
+                &keybinds,
+                &TerminalKey::new(KeyCode::Char('i'), KeyModifiers::empty())
+            ),
+            Some(KeybindMatch::Action(KeybindAction::NextWaitingAgent))
+        ));
+        let config: crate::config::Config =
+            toml::from_str("[keys]\nnext_waiting_agent = \"alt+i\"").unwrap();
+        assert!(config.collect_diagnostics().is_empty());
+        assert!(matches!(
+            resolve_direct_binding(
+                &config.keybinds(),
+                &TerminalKey::new(KeyCode::Char('i'), KeyModifiers::ALT)
+            ),
+            Some(KeybindMatch::Action(KeybindAction::NextWaitingAgent))
+        ));
+    }
 
     #[test]
     fn agent_picker_has_a_default_and_accepts_direct_bindings() {

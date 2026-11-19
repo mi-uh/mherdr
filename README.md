@@ -12,6 +12,18 @@ panes to spaces and agents. Everything else works as in herdr; more in the
   `prefix+a` into the agent list. There `j`/`k` move, `enter` opens, and `a` or
   `w` jumps straight to the other list. Panes keep `h`/`l`; pane up/down moves
   to `ctrl+j`/`ctrl+k` because `j`/`k` now drive the lists.
+  To give `j`/`k` back to the panes as in herdr, set in
+  `~/.config/herdr/config.toml` (the lists then move with the arrow keys):
+  ```toml
+  [keys]
+  navigate_workspace_up = "up"
+  navigate_workspace_down = "down"
+  navigate_pane_down = "j"
+  navigate_pane_up = "k"
+  ```
+- **next waiting agent** — `prefix+i` jumps to the next agent that is blocked
+  or has finished since you last looked, blocked first. Press it again to
+  cycle through them.
 - **higher frame rate** — upstream renders at most ~60 fps, which feels
   sluggish on 120/144 Hz screens. mherdr renders at your display's rate while
   you type or scroll and drops back to 60 fps when agents only print, which

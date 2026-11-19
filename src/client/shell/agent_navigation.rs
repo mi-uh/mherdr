@@ -255,3 +255,107 @@ pub(super) fn render_agent_navigation_highlight(
         buffer.set_style(rect, Style::default().bg(background));
     }
 }
+
+/// Agents that wait for the user, in sidebar order with blocked agents first.
+/// Done uses this client's projected status, so a viewed completion drops out.
+fn waiting_agent_targets(
+    endpoints: &[ClientShellEndpoint],
+    active_endpoint_id: &ClientEndpointId,
+    sort: crate::config::AgentPanelSortConfig,
+) -> Vec<super::aggregate_navigation::AggregateAgentTarget> {
+    use crate::api::schema::AgentStatus;
+    let mut rows =
+        super::aggregate_navigation::aggregate_agent_rows(endpoints, active_endpoint_id, sort)
+            .into_iter()
+            .filter(|row| !row.endpoint.stale())
+            .filter(|row| {
+                matches!(
+                    row.agent.agent_status,
+                    AgentStatus::Blocked | AgentStatus::Done
+                )
+            })
+            .collect::<Vec<_>>();
+    // Stable sort keeps the sidebar order inside each group.
+    rows.sort_by_key(|row| row.agent.agent_status != AgentStatus::Blocked);
+    rows.into_iter()
+        .map(|row| super::aggregate_navigation::AggregateAgentTarget {
+            endpoint_id: row.endpoint.endpoint_id.clone(),
+            pane_id: row.agent.pane_id.clone(),
+        })
+        .collect()
+}
+
+impl ClientShellState {
+    /// The waiting agent after `current`, wrapping around; the first one when
+    /// `current` is not waiting.
+    fn next_waiting_agent_target(
+        &self,
+        current: Option<(&ClientEndpointId, &str)>,
+    ) -> Option<super::aggregate_navigation::AggregateAgentTarget> {
+        let mut targets = waiting_agent_targets(
+            &self.endpoints,
+            &self.active_endpoint_id,
+            self.config.agent_panel_sort,
+        );
+        if targets.is_empty() {
+            return None;
+        }
+        let next = current
+            .and_then(|(endpoint_id, pane_id)| {
+                targets.iter().position(|target| {
+                    &target.endpoint_id == endpoint_id && target.pane_id == pane_id
+                })
+            })
+            .map_or(0, |index| (index + 1) % targets.len());
+        Some(targets.swap_remove(next))
+    }
+
+    /// `prefix+i`: focus the next agent that waits for the user. Does nothing
+    /// when no agent is blocked or has an unviewed completion.
+    pub(super) fn focus_next_waiting_agent(&mut self, outcome: &mut ClientShellInput) {
+        let focused_pane = self
+            .snapshot
+            .as_deref()
+            .and_then(|snapshot| snapshot.focused_pane_id.clone());
+        let active = self.active_endpoint_id.clone();
+        let current = focused_pane.as_deref().map(|pane_id| (&active, pane_id));
+        let Some(target) = self.next_waiting_agent_target(current) else {
+            return;
+        };
+        self.focus_or_activate(
+            target.endpoint_id,
+            ClientEndpointFocusTarget::Pane(target.pane_id),
+            outcome,
+        );
+        outcome.repaint = true;
+    }
+
+    /// `i` inside sidebar navigation: move the agent selection to the next
+    /// waiting agent without changing focus; Enter opens it as usual.
+    pub(super) fn select_next_waiting_agent(&mut self, outcome: &mut ClientShellInput) {
+        if self.agent_navigation.is_none() {
+            self.begin_agent_navigation(outcome);
+        }
+        let current = self.selected_navigation_agent().map(|selected| {
+            (
+                selected.workspace.endpoint_id.clone(),
+                selected.pane_id.clone(),
+            )
+        });
+        let Some(target) = self.next_waiting_agent_target(
+            current
+                .as_ref()
+                .map(|(endpoint_id, pane_id)| (endpoint_id, pane_id.as_str())),
+        ) else {
+            return;
+        };
+        let selected = self.agent_navigation_target(&target.endpoint_id, &target.pane_id);
+        if selected.is_some() {
+            self.agent_navigation = Some(AgentNavigation {
+                selected,
+                reveal: true,
+            });
+            outcome.repaint = true;
+        }
+    }
+}
