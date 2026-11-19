@@ -36,13 +36,26 @@ Linux, 120×40, both builds without LTO, mherdr with `max_fps = 144`, median:
 Compare two binaries yourself with `scripts/mherdr_bench.py`. Details,
 methodology and trade-offs: [MHERDR.md](MHERDR.md).
 
+## install
+
+Prebuilt binaries for Linux (x86_64, aarch64, static) and macOS (x86_64,
+arm64) are on the [releases page](https://github.com/mi-uh/mherdr/releases):
+
+```bash
+curl -fLo ~/.local/bin/mherdr \
+  https://github.com/mi-uh/mherdr/releases/latest/download/mherdr-linux-x86_64
+chmod +x ~/.local/bin/mherdr
+```
+
+macOS binaries are not signed; run `xattr -d com.apple.quarantine mherdr` once.
+
 ## build
 
 ```bash
 cargo build --release   # fat LTO: expect 20+ minutes
 ```
 
-Install as `mherdr` next to the original `herdr`:
+Install your own build as `mherdr` next to the original `herdr`:
 
 ```bash
 ln -sf "$PWD/target/release/herdr" ~/.local/bin/mherdr

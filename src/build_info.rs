@@ -20,6 +20,13 @@ pub fn version() -> String {
     }
 }
 
+/// mherdr release tag (e.g. `mherdr-0.9.5.1`) set by the release workflow, or
+/// `mherdr dev` for local builds. Display only: `version()` stays upstream's
+/// strict `x.y.z` identity because handoff and remote attach compare it.
+pub fn mherdr_label() -> &'static str {
+    non_empty(option_env!("MHERDR_RELEASE")).unwrap_or("mherdr dev")
+}
+
 pub fn is_preview() -> bool {
     channel() == "preview"
 }

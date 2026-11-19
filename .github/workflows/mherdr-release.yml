@@ -1,0 +1,175 @@
+name: mherdr release
+
+# Push a tag like `mherdr-0.9.5.1` (Cargo version + fork build number) to build
+# Linux and macOS binaries and publish them as a GitHub release.
+
+on:
+  push:
+    tags: ["mherdr-*"]
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  RUST_TOOLCHAIN_VERSION: 1.96.1
+
+concurrency:
+  group: mherdr-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: github.repository == 'mi-uh/mherdr'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Tag matches Cargo.toml version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          cargo_version=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          build=${TAG#"mherdr-$cargo_version."}
+          if [[ "$TAG" != "mherdr-$cargo_version."* || ! "$build" =~ ^[0-9]+$ ]]; then
+            echo "error: tag $TAG must be mherdr-$cargo_version.<n>" >&2
+            exit 1
+          fi
+
+  build:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            name: mherdr-linux-x86_64
+            native: true
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            name: mherdr-linux-aarch64
+            native: false
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            name: mherdr-macos-x86_64
+            native: false
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            name: mherdr-macos-aarch64
+            native: true
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    env:
+      LIBGHOSTTY_VT_OPTIMIZE: ReleaseFast
+      LIBGHOSTTY_VT_SIMD: "true"
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # v1
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN_VERSION }}
+          targets: ${{ matrix.target }}
+
+      - name: Install Zig
+        uses: vercel-labs/setup-zig@83c1594f26b86da8a9a8ddd9b5ee5f3af0f96943 # v1.0.2
+        with:
+          version: 0.16.0
+
+      - name: Install Linux build tools
+        if: runner.os == 'Linux'
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i '/azure.archive.ubuntu.com/d' /etc/apt/apt-mirrors.txt
+          fi
+          sudo find /etc/apt/sources.list.d -type f \( -iname '*microsoft*' -o -iname '*azure-cli*' \) -print -delete
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build musl-tools gcc-aarch64-linux-gnu crossbuild-essential-arm64
+
+      - name: Install macOS build tools
+        if: runner.os == 'macOS'
+        run: HOMEBREW_NO_AUTO_UPDATE=1 brew install cmake ninja
+
+      - name: Set Linux aarch64 linker
+        if: matrix.target == 'aarch64-unknown-linux-musl'
+        run: echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+
+      - name: Remove Zig caches
+        run: rm -rf .zig-cache vendor/libghostty-vt/.zig-cache vendor/libghostty-vt/zig-out
+
+      - name: Build
+        env:
+          MHERDR_RELEASE: ${{ github.ref_name }}
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package
+        run: cp "target/${{ matrix.target }}/release/herdr" "${{ matrix.name }}"
+
+      - name: Check Linux binary is static
+        if: runner.os == 'Linux'
+        run: |
+          file "${{ matrix.name }}" | tee file.txt
+          grep -q "statically linked" file.txt
+
+      - name: Check version identity
+        if: matrix.native
+        run: |
+          version=$("./${{ matrix.name }}" --version)
+          echo "$version"
+          [[ "$version" == *"(${{ github.ref_name }})" ]]
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
+          retention-days: 7
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          chmod +x mherdr-*
+          sha256sum mherdr-* > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          cat > notes.md <<EOF
+          Prebuilt mherdr binaries for \`$TAG\` (commit ${GITHUB_SHA:0:8}).
+          What changed against upstream herdr and the measurements: [MHERDR.md](https://github.com/$REPO/blob/$TAG/MHERDR.md).
+
+          \`\`\`bash
+          # pick the file for your platform
+          curl -fLo ~/.local/bin/mherdr https://github.com/$REPO/releases/download/$TAG/mherdr-linux-x86_64
+          chmod +x ~/.local/bin/mherdr
+          mherdr server stop   # if an older mherdr server is still running
+          \`\`\`
+
+          macOS binaries are not signed: run \`xattr -d com.apple.quarantine mherdr\` once after downloading.
+          Verify downloads with \`SHA256SUMS\`.
+          EOF
+          gh release create "$TAG" dist/* --repo "$REPO" --title "$TAG" --notes-file notes.md --verify-tag
