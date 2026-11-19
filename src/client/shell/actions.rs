@@ -66,6 +66,10 @@ impl ClientShellState {
                     self.focus_visible_notification(outcome);
                     return;
                 }
+                if action == crate::input::KeybindAction::NextWaitingAgent {
+                    self.focus_next_waiting_agent(outcome);
+                    return;
+                }
                 if action == crate::input::KeybindAction::ReloadConfig {
                     self.push_endpoint_method_with_kind(
                         crate::api::schema::Method::ServerReloadConfig(

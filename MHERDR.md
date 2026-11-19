@@ -13,7 +13,8 @@
 | `48a79f7c` | client sends requests to the server before composing its own frame     |
 | `877a53f2` | cell symbols stored inline (CompactString) instead of one heap string  |
 | `d8ef0db7` | tab surfaces rendered without a ratatui flush and extra copies          |
-| (branch)   | `max_fps` applies for 0.5 s after input; output alone stays at 60 fps  |
+| `46a99640` | `max_fps` applies for 0.5 s after input; output alone stays at 60 fps  |
+| (branch)   | `prefix+i` jumps to the next blocked or finished agent                  |
 
 The wire protocol is unchanged, but run client and server from the same build.
 

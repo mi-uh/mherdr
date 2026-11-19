@@ -769,6 +769,10 @@ impl ClientShellState {
                 }
                 return;
             }
+            Some(KeybindAction::NextWaitingAgent) => {
+                self.select_next_waiting_agent(outcome);
+                return;
+            }
             Some(KeybindAction::WorkspacePicker) => {
                 if self.agent_navigation.take().is_some() {
                     if self.navigate_workspace_id.is_none() {

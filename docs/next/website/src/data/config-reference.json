@@ -608,6 +608,12 @@
           "description": "Focus the currently visible notification target."
         },
         {
+          "key": "keys.next_waiting_agent",
+          "type": "keybinding",
+          "default": "\"prefix+i\"",
+          "description": "Focus the next agent that waits for you: blocked first, then done."
+        },
+        {
           "key": "keys.previous_workspace",
           "type": "keybinding",
           "default": "unset",
