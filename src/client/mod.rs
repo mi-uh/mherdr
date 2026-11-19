@@ -921,19 +921,14 @@ async fn run_client_loop(
                             false,
                         );
                     }
-                    let (outcome, frame) = {
-                        let shell = state.shell.as_mut().expect("checked shell mode");
-                        let outcome = shell.handle_raw_events(events);
-                        let frame = outcome
-                            .repaint
-                            .then(|| shell.compose(state.reported_size.0, state.reported_size.1))
-                            .flatten();
-                        (outcome, frame)
-                    };
+                    let outcome = state
+                        .shell
+                        .as_mut()
+                        .expect("checked shell mode")
+                        .handle_raw_events(events);
                     if finish_client_shell_input(
                         &mut state,
                         outcome,
-                        frame,
                         &mut write_stream,
                         &mut pending_activation,
                         &mut endpoint_commands,
@@ -1114,19 +1109,14 @@ async fn run_client_loop(
             ClientLoopEvent::PixelMouse(data, geometry) => {
                 if state.shell.is_some() {
                     supervisors.user_activity(now);
-                    let (outcome, frame) = {
-                        let shell = state.shell.as_mut().expect("checked shell mode");
-                        let outcome = shell.handle_pixel_mouse(&data, geometry);
-                        let frame = outcome
-                            .repaint
-                            .then(|| shell.compose(state.reported_size.0, state.reported_size.1))
-                            .flatten();
-                        (outcome, frame)
-                    };
+                    let outcome = state
+                        .shell
+                        .as_mut()
+                        .expect("checked shell mode")
+                        .handle_pixel_mouse(&data, geometry);
                     if finish_client_shell_input(
                         &mut state,
                         outcome,
-                        frame,
                         &mut write_stream,
                         &mut pending_activation,
                         &mut endpoint_commands,
@@ -1223,19 +1213,14 @@ async fn run_client_loop(
                             continue;
                         }
                     }
-                    let (outcome, frame) = {
-                        let shell = state.shell.as_mut().expect("checked shell mode");
-                        let outcome = shell.handle_client_events(&events);
-                        let frame = outcome
-                            .repaint
-                            .then(|| shell.compose(state.reported_size.0, state.reported_size.1))
-                            .flatten();
-                        (outcome, frame)
-                    };
+                    let outcome = state
+                        .shell
+                        .as_mut()
+                        .expect("checked shell mode")
+                        .handle_client_events(&events);
                     if finish_client_shell_input(
                         &mut state,
                         outcome,
-                        frame,
                         &mut write_stream,
                         &mut pending_activation,
                         &mut endpoint_commands,
@@ -1255,14 +1240,9 @@ async fn run_client_loop(
                     if !outcome.actions.is_empty() {
                         crate::platform::foreground_desktop_notification_host();
                     }
-                    let frame = outcome
-                        .repaint
-                        .then(|| shell.compose(state.reported_size.0, state.reported_size.1))
-                        .flatten();
                     if finish_client_shell_input(
                         &mut state,
                         outcome,
-                        frame,
                         &mut write_stream,
                         &mut pending_activation,
                         &mut endpoint_commands,
@@ -1980,22 +1960,15 @@ async fn run_client_loop(
                                 }
                             }
                         } else {
-                            let (outcome, frame) = {
+                            let outcome = {
                                 let shell = state.shell.as_mut().expect("shell endpoint response");
                                 let mut outcome = shell.replay_mouse_events(replay_mouse);
                                 outcome.repaint |= repaint;
-                                let frame = outcome
-                                    .repaint
-                                    .then(|| {
-                                        shell.compose(state.reported_size.0, state.reported_size.1)
-                                    })
-                                    .flatten();
-                                (outcome, frame)
+                                outcome
                             };
                             if finish_client_shell_input(
                                 &mut state,
                                 outcome,
-                                frame,
                                 &mut write_stream,
                                 &mut pending_activation,
                                 &mut endpoint_commands,
@@ -2330,7 +2303,7 @@ async fn run_client_loop(
                             write_stream.accepts(&expired.endpoint_id, expired.generation)
                         })
                         .collect::<Vec<_>>();
-                    let (effects, outcome, frame) = {
+                    let (effects, outcome) = {
                         let shell = state.shell.as_mut().expect("checked shell mode");
                         let mut outcome = shell.tick_selection_autoscroll(now);
                         for expired in expired_endpoints {
@@ -2350,11 +2323,7 @@ async fn run_client_loop(
                             | shell.tick_copy_feedback(now)
                             | shell.tick_workspace_highlight(now)
                             | shell.tick_endpoint_error(now);
-                        let frame = outcome
-                            .repaint
-                            .then(|| shell.compose(state.reported_size.0, state.reported_size.1))
-                            .flatten();
-                        (effects, outcome, frame)
+                        (effects, outcome)
                     };
                     handle_shell_notification_effects(
                         effects,
@@ -2365,7 +2334,6 @@ async fn run_client_loop(
                     if finish_client_shell_input(
                         &mut state,
                         outcome,
-                        frame,
                         &mut write_stream,
                         &mut pending_activation,
                         &mut endpoint_commands,

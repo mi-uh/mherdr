@@ -743,7 +743,6 @@ pub(super) fn install_client_shell_snapshot(
 pub(super) fn finish_client_shell_input(
     state: &mut ClientState,
     outcome: shell::ClientShellInput,
-    frame: Option<super::frame_output::ComposedFrame>,
     endpoints: &mut endpoint::EndpointRegistry,
     pending_activation: &mut Option<endpoint::PendingEndpointActivation>,
     endpoint_commands: &mut endpoint_commands::EndpointCommands,
@@ -751,6 +750,7 @@ pub(super) fn finish_client_shell_input(
     scheduled_activation: &mut Option<ClientLoopEvent>,
 ) -> Result<bool, ClientError> {
     apply_client_shell_input_source_changes(state, prefix_input_source);
+    let repaint = outcome.repaint;
     if outcome.detach {
         let _ = write_to_server(endpoints, &ClientMessage::Detach);
         return Ok(true);
@@ -789,14 +789,6 @@ pub(super) fn finish_client_shell_input(
         &mut state.detached_process_children,
         scheduled_activation,
     )?;
-    let frame = if dispatch_repaint {
-        state
-            .shell
-            .as_mut()
-            .and_then(|shell| shell.compose(state.reported_size.0, state.reported_size.1))
-    } else {
-        frame
-    };
     debug_assert!(
         replay.is_empty(),
         "mouse replay only follows endpoint results"
@@ -856,6 +848,17 @@ pub(super) fn finish_client_shell_input(
         }
         write_to_server(endpoints, &request).map_err(ClientError::ConnectionLost)?;
     }
+    // Compose after the requests are on the wire: a full shell compose costs
+    // about a millisecond, and the server can already work on navigation or
+    // pane input while the local chrome frame is built.
+    let frame = if repaint || dispatch_repaint {
+        state
+            .shell
+            .as_mut()
+            .and_then(|shell| shell.compose(state.reported_size.0, state.reported_size.1))
+    } else {
+        None
+    };
     if let Some(frame) = frame {
         if pending_activation.is_some() {
             state.present_frame(frame);
@@ -911,7 +914,6 @@ mod tests {
         finish_client_shell_input(
             &mut state,
             outcome,
-            None,
             &mut endpoints,
             &mut pending_activation,
             &mut endpoint_commands,
@@ -945,7 +947,6 @@ mod tests {
         finish_client_shell_input(
             &mut state,
             outcome,
-            None,
             &mut endpoints,
             &mut pending_activation,
             &mut endpoint_commands,
