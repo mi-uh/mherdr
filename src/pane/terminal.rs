@@ -2738,8 +2738,8 @@ fn ghostty_collect_dirty_patch(
                 &mut grapheme_bytes,
                 &mut symbol_scratch,
             ) {
-                Ok(symbol) => symbol.to_owned(),
-                Err(_) => ghostty_blank_symbol_for_width(basic.wide).to_owned(),
+                Ok(symbol) => crate::protocol::CellSymbol::from(symbol),
+                Err(_) => ghostty_blank_symbol_for_width(basic.wide).into(),
             };
             patch_cells.push(cell_data_from_style(symbol, style));
             x += 1;
@@ -3254,15 +3254,12 @@ fn ghostty_reset_cell(
 }
 
 fn blank_cell_data(default_fg: Option<Color>, default_bg: Option<Color>) -> CellData {
-    cell_data_from_style(
-        " ".to_string(),
-        ghostty_default_style(default_fg, default_bg),
-    )
+    cell_data_from_style(" ", ghostty_default_style(default_fg, default_bg))
 }
 
-fn cell_data_from_style(symbol: String, style: Style) -> CellData {
+fn cell_data_from_style(symbol: impl Into<crate::protocol::CellSymbol>, style: Style) -> CellData {
     CellData {
-        symbol,
+        symbol: symbol.into(),
         fg: crate::protocol::color_to_u32(style.fg.unwrap_or(Color::Reset)),
         bg: crate::protocol::color_to_u32(style.bg.unwrap_or(Color::Reset)),
         modifier: crate::protocol::modifier_to_u16(style.add_modifier),

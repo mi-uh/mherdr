@@ -691,12 +691,203 @@ pub enum AttachScrollSource {
 // Server → Client messages
 // ---------------------------------------------------------------------------
 
+/// Grapheme cluster displayed in one cell.
+///
+/// Symbols up to 24 bytes (every ordinary cell) are stored inline, so building,
+/// cloning, and dropping whole frames does not allocate per cell. Encodes exactly
+/// like `String` in every serde format and in bincode.
+#[derive(Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct CellSymbol(compact_str::CompactString);
+
+impl CellSymbol {
+    pub const fn new_inline(text: &'static str) -> Self {
+        Self(compact_str::CompactString::const_new(text))
+    }
+
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    pub fn push(&mut self, ch: char) {
+        self.0.push(ch);
+    }
+
+    pub fn push_str(&mut self, text: &str) {
+        self.0.push_str(text);
+    }
+}
+
+impl std::ops::Deref for CellSymbol {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl AsRef<str> for CellSymbol {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl std::borrow::Borrow<str> for CellSymbol {
+    fn borrow(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl std::fmt::Debug for CellSymbol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self.0.as_str(), f)
+    }
+}
+
+impl std::fmt::Display for CellSymbol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.0.as_str())
+    }
+}
+
+impl From<&str> for CellSymbol {
+    fn from(text: &str) -> Self {
+        Self(text.into())
+    }
+}
+
+impl From<&String> for CellSymbol {
+    fn from(text: &String) -> Self {
+        Self(text.as_str().into())
+    }
+}
+
+impl From<String> for CellSymbol {
+    fn from(text: String) -> Self {
+        // Copy short text inline instead of adopting the heap buffer, so later
+        // clones of this symbol stay allocation-free.
+        Self(text.as_str().into())
+    }
+}
+
+impl From<char> for CellSymbol {
+    fn from(ch: char) -> Self {
+        let mut buf = [0u8; 4];
+        Self(compact_str::CompactString::from(&*ch.encode_utf8(&mut buf)))
+    }
+}
+
+impl From<CellSymbol> for String {
+    fn from(symbol: CellSymbol) -> Self {
+        symbol.0.into_string()
+    }
+}
+
+impl PartialEq<str> for CellSymbol {
+    fn eq(&self, other: &str) -> bool {
+        self.0.as_str() == other
+    }
+}
+
+impl PartialEq<&str> for CellSymbol {
+    fn eq(&self, other: &&str) -> bool {
+        self.0.as_str() == *other
+    }
+}
+
+impl PartialEq<String> for CellSymbol {
+    fn eq(&self, other: &String) -> bool {
+        self.0.as_str() == other.as_str()
+    }
+}
+
+impl PartialEq<CellSymbol> for &str {
+    fn eq(&self, other: &CellSymbol) -> bool {
+        *self == other.0.as_str()
+    }
+}
+
+impl PartialEq<CellSymbol> for str {
+    fn eq(&self, other: &CellSymbol) -> bool {
+        self == other.0.as_str()
+    }
+}
+
+impl Serialize for CellSymbol {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.0.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for CellSymbol {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Visitor;
+
+        impl serde::de::Visitor<'_> for Visitor {
+            type Value = CellSymbol;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("a cell symbol string")
+            }
+
+            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<CellSymbol, E> {
+                Ok(CellSymbol::from(value))
+            }
+
+            fn visit_string<E: serde::de::Error>(self, value: String) -> Result<CellSymbol, E> {
+                Ok(CellSymbol::from(value))
+            }
+
+            fn visit_bytes<E: serde::de::Error>(self, value: &[u8]) -> Result<CellSymbol, E> {
+                std::str::from_utf8(value)
+                    .map(CellSymbol::from)
+                    .map_err(|_| E::invalid_value(serde::de::Unexpected::Bytes(value), &self))
+            }
+        }
+
+        deserializer.deserialize_str(Visitor)
+    }
+}
+
+impl<Context> bincode::Decode<Context> for CellSymbol {
+    fn decode<D: bincode::de::Decoder<Context = Context>>(
+        decoder: &mut D,
+    ) -> Result<Self, bincode::error::DecodeError> {
+        // Same layout as `String`: a length followed by UTF-8 bytes. Short symbols
+        // are read through a stack buffer, so decoding does not allocate per cell.
+        use bincode::de::read::Reader;
+        let len = <u64 as bincode::Decode<Context>>::decode(decoder)?;
+        let len = usize::try_from(len)
+            .map_err(|_| bincode::error::DecodeError::OutsideUsizeRange(len))?;
+        decoder.claim_bytes_read(len)?;
+        let mut inline = [0u8; 24];
+        if len <= inline.len() {
+            decoder.reader().read(&mut inline[..len])?;
+            let text = std::str::from_utf8(&inline[..len])
+                .map_err(|inner| bincode::error::DecodeError::Utf8 { inner })?;
+            return Ok(Self::from(text));
+        }
+        let mut bytes = vec![0u8; len];
+        decoder.reader().read(&mut bytes)?;
+        String::from_utf8(bytes)
+            .map(Self::from)
+            .map_err(|err| bincode::error::DecodeError::Utf8 {
+                inner: err.utf8_error(),
+            })
+    }
+}
+
+bincode::impl_borrow_decode!(CellSymbol);
+
 /// A single cell in a rendered frame, serialized independently from ratatui's
 /// `Cell` type to keep the wire protocol stable.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, bincode::Decode)]
 pub struct CellData {
     /// Grapheme cluster displayed in this cell (usually 1–2 chars).
-    pub symbol: String,
+    pub symbol: CellSymbol,
     /// Foreground color as a packed u32 (0xAARRGGBB or ratatui Color index).
     pub fg: u32,
     /// Background color as a packed u32.
@@ -727,7 +918,7 @@ impl Clone for CellData {
 impl CellData {
     pub(crate) fn from_ratatui_cell(cell: &ratatui::buffer::Cell) -> Self {
         Self {
-            symbol: cell.symbol().to_owned(),
+            symbol: cell.symbol().into(),
             fg: color_to_u32(cell.fg),
             bg: color_to_u32(cell.bg),
             modifier: modifier_to_u16(cell.modifier),
@@ -852,7 +1043,7 @@ impl FrameData {
                     let uri = self.hyperlinks.get(cell.hyperlink? as usize)?;
                     let x = u16::try_from(index % usize::from(width)).ok()?;
                     let y = u16::try_from(index / usize::from(width)).ok()?;
-                    Some(((x, y), cell.symbol.clone(), uri.clone()))
+                    Some(((x, y), cell.symbol.to_string(), uri.clone()))
                 })
                 .collect::<Vec<_>>()
         };
@@ -3073,9 +3264,9 @@ mod tests {
         let cells: Vec<CellData> = (0..(width as usize) * (height as usize))
             .map(|i| CellData {
                 symbol: if i % 256 < 32 {
-                    " ".to_owned()
+                    " ".into()
                 } else {
-                    format!("{:03}", i % 1000)
+                    format!("{:03}", i % 1000).into()
                 },
                 fg: color_to_u32(Color::Rgb((i % 256) as u8, ((i / 256) % 256) as u8, 128)),
                 bg: color_to_u32(Color::Indexed((i % 256) as u8)),
