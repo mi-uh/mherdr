@@ -558,20 +558,99 @@ pub(crate) fn render_tab_surface_virtual(
     let cursor = crate::ui::tab_surface_cursor(app_state, terminal_runtimes, surface);
     let hyperlinks = crate::ui::tab_surface_hyperlinks(app_state, terminal_runtimes, surface);
 
-    let backend = CursorTrackingBackend::new(area.width, area.height);
-    let mut terminal = ratatui::Terminal::new(backend).expect("TestBackend::new should never fail");
-    terminal
-        .draw(|frame| {
-            crate::ui::render_tab_surface(app_state, terminal_runtimes, surface, frame);
-        })
-        .expect("render to TestBackend should never fail");
+    // Render straight into the frame buffer. `Terminal::draw` would diff it
+    // against an empty buffer, copy every cell into a backend buffer, and then
+    // clone that again; `retain_flushed_cells` reproduces the diff's visible
+    // effect on the result instead.
+    let mut terminal = ratatui::Terminal::new(SizeOnlyBackend(Size::new(area.width, area.height)))
+        .expect("size-only backend never fails");
+    crate::ui::render_tab_surface(
+        app_state,
+        terminal_runtimes,
+        surface,
+        &mut terminal.get_frame(),
+    );
+    let mut buffer = std::mem::take(terminal.current_buffer_mut());
+    retain_flushed_cells(&mut buffer);
 
-    (
-        terminal.backend().buffer().clone(),
-        cursor,
-        hyperlinks,
-        layout,
-    )
+    (buffer, cursor, hyperlinks, layout)
+}
+
+/// Resets every cell that `Terminal::draw` would not have flushed to a fresh
+/// backend: cells marked `skip`, and cells covered by a preceding wide symbol
+/// (except the explicit trailing clears ratatui emits for VS16 emoji).
+fn retain_flushed_cells(buffer: &mut ratatui::buffer::Buffer) {
+    use unicode_width::UnicodeWidthStr;
+
+    let default = ratatui::buffer::Cell::default();
+    let mut to_skip = 0usize;
+    let mut explicit_trailing_until = 0usize;
+    for (index, cell) in buffer.content.iter_mut().enumerate() {
+        let width = cell.symbol().width();
+        let flushed = !cell.skip && to_skip == 0;
+        if flushed && width > 1 && cell.symbol().contains('\u{FE0F}') {
+            explicit_trailing_until = index + width;
+        }
+        let keep = flushed || (index < explicit_trailing_until && !cell.skip);
+        to_skip = width.saturating_sub(1);
+        if !keep {
+            *cell = default.clone();
+        }
+    }
+}
+
+/// Backend that only reports a size, for rendering into a `Terminal`'s frame
+/// buffer without flushing it anywhere.
+struct SizeOnlyBackend(Size);
+
+impl Backend for SizeOnlyBackend {
+    type Error = std::convert::Infallible;
+
+    fn draw<'a, I>(&mut self, _content: I) -> Result<(), Self::Error>
+    where
+        I: Iterator<Item = (u16, u16, &'a ratatui::buffer::Cell)>,
+    {
+        Ok(())
+    }
+
+    fn hide_cursor(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn show_cursor(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn get_cursor_position(&mut self) -> Result<Position, Self::Error> {
+        Ok(Position::ORIGIN)
+    }
+
+    fn set_cursor_position<P: Into<Position>>(&mut self, _position: P) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn clear(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn clear_region(&mut self, _clear_type: ClearType) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn size(&self) -> Result<Size, Self::Error> {
+        Ok(self.0)
+    }
+
+    fn window_size(&mut self) -> Result<WindowSize, Self::Error> {
+        Ok(WindowSize {
+            columns_rows: self.0,
+            pixels: Size::new(0, 0),
+        })
+    }
+
+    fn flush(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
 }
 
 /// Renders one server-owned terminal directly for `terminal attach` clients.
@@ -611,6 +690,39 @@ pub(crate) fn render_terminal_virtual(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn retained_flush_matches_terminal_draw_into_a_fresh_backend() {
+        use ratatui::style::{Color, Style};
+
+        let area = Rect::new(0, 0, 12, 4);
+        let mut source = ratatui::buffer::Buffer::empty(area);
+        let styled = Style::default().fg(Color::Red).bg(Color::Blue);
+        // ASCII, CJK (width 2), a VS16 emoji, and a wide symbol at the row end
+        // whose trailing width runs into the next row.
+        source.set_string(0, 0, "ab界c", styled);
+        source.set_string(5, 0, "\u{2764}\u{fe0f}x", styled);
+        source.set_string(11, 0, "界", styled);
+        source.set_string(0, 1, "skip", Style::default().bg(Color::Green));
+        source[(1, 1)].set_skip(true);
+        source[(2, 1)].set_skip(true);
+        // Trailing cells hidden by wide symbols that still carry content.
+        source.set_string(0, 2, "界", styled);
+        source[(1, 2)].set_symbol("z").set_bg(Color::Yellow);
+        source.set_string(4, 2, "\u{2764}\u{fe0f}", styled);
+        source[(5, 2)].set_symbol("q").set_bg(Color::Yellow);
+        source.set_string(0, 3, "plain text  ", Style::default());
+
+        let mut reference = ratatui::Terminal::new(TestBackend::new(area.width, area.height))
+            .expect("test backend");
+        reference
+            .draw(|frame| frame.buffer_mut().clone_from(&source))
+            .expect("draw to test backend");
+
+        let mut retained = source.clone();
+        retain_flushed_cells(&mut retained);
+        assert_eq!(&retained, reference.backend().buffer());
+    }
     use crate::protocol::ClientShellPopupSurface;
 
     fn popup_surface(content: &str) -> PaneSurfaceFrame {
