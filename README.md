@@ -13,7 +13,9 @@ panes to spaces and agents. Everything else works as in herdr; more in the
   `w` jumps straight to the other list. Panes keep `h`/`l`; pane up/down moves
   to `ctrl+j`/`ctrl+k` because `j`/`k` now drive the lists.
 - **higher frame rate** — upstream renders at most ~60 fps, which feels
-  sluggish on 120/144 Hz screens. Set your display's refresh rate in
+  sluggish on 120/144 Hz screens. mherdr renders at your display's rate while
+  you type or scroll and drops back to 60 fps when agents only print, which
+  saves about a quarter of herdr's CPU then. Set the refresh rate in
   `~/.config/herdr/config.toml` (default 60, range 30–240):
   ```toml
   [advanced]

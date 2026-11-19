@@ -9,6 +9,8 @@ Tests:
   wheel   one mouse wheel step until its frame arrives
   fps     frames per second during continuous wheel scrolling (8 ms events)
   flood   time and herdr CPU for `seq 1 5000000`
+  stream  frames per second and herdr CPU while a pane prints steadily
+          (300 new lines every ~10 ms for 6 s) and nobody types, like a working agent
 
 Each binary runs in its own throwaway HOME/session at 120x40. Set
 MAX_FPS=144 to add `[advanced] max_fps` to the generated config (ignored
@@ -193,8 +195,27 @@ def flood(h, _n):
     return f"{secs:.1f} s, herdr cpu {(h.cpu_ticks() - c0) / hz / secs * 100:.0f}%"
 
 
+def stream(h, _n, seconds=6.0):
+    hz = os.sysconf("SC_CLK_TCK")
+    # The typed command is input; let its activity window pass first.
+    cmd = (f"sleep 1; end=$((SECONDS+{int(seconds)})); "
+           "i=0; while [ $SECONDS -lt $end ]; do i=$((i+1)); seq -f \"line $i %g\" 1 300; "
+           "sleep 0.01; done; echo STR''EAMDONE")
+    os.write(h.fd, f"{cmd}\r".encode())
+    drain(h.fd, 0.3, 1.5)
+    c0, t0, frames, buf = h.cpu_ticks(), time.perf_counter(), 0, b""
+    while time.perf_counter() - t0 < seconds + 5 and b"STREAMDONE" not in buf:
+        if select.select([h.fd], [], [], 0.5)[0]:
+            chunk = os.read(h.fd, 1 << 20)
+            frames += chunk.count(END)
+            buf = (buf + chunk)[-4096:]
+    secs = time.perf_counter() - t0
+    return (f"{frames / secs:.0f} fps, herdr cpu "
+            f"{(h.cpu_ticks() - c0) / hz / secs * 100:.0f}% over {secs:.1f} s")
+
+
 TESTS = {"echo": (echo, 200), "switch": (switch, 60), "wheel": (wheel, 400),
-         "fps": (fps, 0), "flood": (flood, 0)}
+         "fps": (fps, 0), "flood": (flood, 0), "stream": (stream, 0)}
 
 if __name__ == "__main__":
     if len(sys.argv) < 3 or sys.argv[1] not in TESTS:
