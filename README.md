@@ -74,18 +74,15 @@ mherdr --session m server stop
 
 ## Measured
 
-Against upstream herdr (2026-11-20), Linux, 120×40, without LTO,
-`max_fps = 144`, median:
+Against upstream herdr, 2026-11-20 ([method](MHERDR.md#measurements)):
 
-| test                              | herdr   | mherdr  |
-| --------------------------------- | ------- | ------- |
-| tab switch until new content      | 13.5 ms | 6.7 ms  |
-| wheel step until frame            | 9.1 ms  | 2.5 ms  |
-| frames per second while scrolling | 58      | 125     |
-| keypress until echo               | 5.6 ms  | 2.0 ms  |
-| CPU while an agent prints         | 41 %    | 16 %    |
-
-Method and all results: [MHERDR.md](MHERDR.md).
+| test                              | herdr    | mherdr   | effect                      |
+| --------------------------------- | -------- | -------- | --------------------------- |
+| tab switch until new frame        | 13.5 ms  | 6.7 ms   | **2× faster**               |
+| wheel step until frame            | 9.1 ms   | 2.5 ms   | **3.6× faster**             |
+| scroll steps drawn (125 per s)    | 58 / s   | 125 / s  | **every step, none skipped** |
+| keypress until echo               | 5.6 ms   | 2.0 ms   | **2.8× faster**             |
+| CPU while an agent prints         | 41 %     | 16 %     | **−60 % CPU**               |
 
 ## License
 
