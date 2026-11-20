@@ -1,6 +1,6 @@
 # mherdr: changes, measurements, trade-offs
 
-## changes against upstream
+## Changes against upstream
 
 | commit     | change                                                                 |
 | ---------- | ---------------------------------------------------------------------- |
@@ -14,73 +14,52 @@
 | `877a53f2` | cell symbols stored inline (CompactString) instead of one heap string  |
 | `d8ef0db7` | tab surfaces rendered without a ratatui flush and extra copies          |
 | `46a99640` | `max_fps` applies for 0.5 s after input; output alone stays at 60 fps  |
-| (branch)   | `prefix+i` jumps to the next blocked or finished agent                  |
+| `e297d1b6` | `prefix+i` jumps to the next blocked or finished agent                  |
 
-The wire protocol is unchanged, but run client and server from the same build.
+**Compatibility:** wire protocol unchanged, but run client and server from the
+same build.
 
-## measurements
+## Measurements
 
-`scripts/mherdr_bench.py` starts each binary in a throwaway HOME and session
-inside a 120×40 pseudo terminal and times what arrives at the host side. A
-frame counts as delivered when its synchronized-output end marker
-(`CSI ? 2026 l`) arrives. No pixels or terminal emulator are involved, so the
-numbers are herdr's own share of the latency.
+`scripts/mherdr_bench.py` runs each binary in a throwaway HOME at 120×40 and
+times bytes at the PTY (frame end = `CSI ? 2026 l`). No terminal emulator
+involved.
 
-Upstream `ee5bfb50` vs mherdr `d8ef0db7`, both built without LTO (the LTO
-release build is faster still), mherdr with `MAX_FPS=144`:
+Upstream herdr `e8d7d970` vs mherdr `4309e14b` (2026-11-20), both without LTO,
+mherdr with `MAX_FPS=144`, p50, two rounds. Lower is better except fps.
 
-| test     | what is timed                                    | herdr        | mherdr       |
-| -------- | ------------------------------------------------ | ------------ | ------------ |
-| `switch` | `ctrl+b n` until the last frame of the new tab   | 10.4 ms      | 6.7 ms       |
-| `wheel`  | one wheel step until its frame (p50 / p90)       | 7.7 / 12.7 ms | 2.5 / 2.9 ms |
-| `fps`    | frames per second, wheel event every 8 ms        | 58           | 125          |
-| `echo`   | keypress until the shell's echo arrives          | 1.8 ms       | 1.8 ms       |
-| `flood`  | `seq 1 5000000`: duration, herdr CPU             | 6.0 s, 103 % | 5.9 s, 108 % |
+| test                                  | herdr         | mherdr        | effect             |
+| ------------------------------------- | ------------- | ------------- | ------------------ |
+| `switch`: tab switch until new frame  | 13.5 ms       | 6.7 ms        | **2× faster**      |
+| `wheel`: wheel step until its frame   | 9.1 ms        | 2.5 ms        | **3.6× faster**    |
+| `fps`: frames/s while scrolling       | 58            | 125           | **2× smoother**    |
+| `echo`: keypress until echo           | 5.6 ms        | 2.0 ms        | **2.8× faster**    |
+| `stream`: agent prints, you idle      | 52 fps, 41 % CPU | 52 fps, 16 % CPU | **−60 % CPU**  |
+| `flood`: `seq 1 5000000`              | 5.8 s, 131 % CPU | 5.8 s, 102 % CPU | **−22 % CPU**  |
 
-With the adaptive frame rate (branch `perf/adaptive-fps`, measured against
-mherdr `a1da0275`, both without LTO, `MAX_FPS=144`, two rounds each):
+### Run it yourself
 
-| test     | what is measured                                 | before       | after        |
-| -------- | ------------------------------------------------ | ------------ | ------------ |
-| `stream` | steady output, no input: frames/s, herdr CPU     | 101 fps, 21 % | 51 fps, 16 % |
-| `flood`  | `seq 1 5000000`: duration, herdr CPU             | 5.9 s, 108 % | 6.0 s, 100 % |
-| `fps`    | frames per second, wheel event every 8 ms        | 125          | 125          |
-| `wheel`  | one wheel step until its frame (p50)             | 2.7 ms       | 2.8 ms       |
-| `switch` | `ctrl+b n` until the last frame of the new tab   | 6.7 ms       | 6.9 ms       |
-| `echo`   | keypress until the shell's echo arrives (p50)    | 2.0 ms       | 2.0 ms       |
-
-A plain bash in the same pseudo terminal echoes in about 0.4 ms. The rest of
-the echo time is the client/server round trip every multiplexer has; mherdr
-does not change it.
-
-### run it yourself
+**Requires:** two release builds; run from the repo root.
 
 ```bash
-# two builds side by side, e.g. upstream in a worktree
-git worktree add ../herdr-upstream ee5bfb50
+git worktree add ../herdr-upstream upstream/master
 (cd ../herdr-upstream && cargo build --release)
 cargo build --release
 
-for t in switch wheel fps echo; do
-  scripts/mherdr_bench.py $t ../herdr-upstream/target/release/herdr
-  MAX_FPS=144 scripts/mherdr_bench.py $t target/release/herdr
+for t in switch wheel fps echo stream flood; do
+  MAX_FPS=144 scripts/mherdr_bench.py $t \
+    ../herdr-upstream/target/release/herdr target/release/herdr
 done
 ```
 
-`N=<samples>` changes the sample count. Upstream ignores `max_fps`, so
-`MAX_FPS` makes no difference there. For the render pipeline alone there is
-also `just bench-render-scale`.
+`N=<samples>` sets the sample count; upstream ignores `MAX_FPS`. Render
+pipeline only: `just bench-render-scale`.
 
-## trade-offs
+## Trade-offs
 
-- **CPU while scrolling** — 144 fps means more frames: wheel scrolling uses
-  about 40 % of one core instead of 25 %. Idle cost is unchanged. The high
-  rate only applies for 0.5 s after keyboard, mouse or resize input; output
-  without input (busy agents) stays at 60 fps. Use a lower `max_fps` on
-  battery or slow SSH links.
-- **build time** — fat LTO turns a few minutes into 20+ minutes.
-- **key change** — in navigate mode `j`/`k` now move through spaces/agents;
-  pane focus up/down is `ctrl+j`/`ctrl+k`.
-- **upstream syncs** — the touched render and input code can conflict when
-  merging new upstream releases. `retained_flush_matches_terminal_draw_into_a_fresh_backend`
-  guards the ratatui flush emulation against ratatui upgrades.
+| area           | cost                                                                   |
+| -------------- | ---------------------------------------------------------------------- |
+| CPU            | scrolling at 144 fps: ~40 % of a core instead of 25 %; lower `max_fps` on battery or slow SSH |
+| build time     | fat LTO: 20+ minutes instead of a few                                  |
+| keys           | navigate mode: `j`/`k` move lists, pane up/down is `ctrl+j`/`ctrl+k`   |
+| upstream syncs | render and input changes can conflict; `retained_flush_matches_terminal_draw_into_a_fresh_backend` guards the ratatui flush emulation |

@@ -1,59 +1,43 @@
 # mherdr
 
-A personal fork of [herdr](https://github.com/herdrdev/herdr) that aims to feel
-as responsive as a plain terminal and extends herdr's vim-style navigation from
-panes to spaces and agents. Everything else works as in herdr; more in the
-[original README](https://github.com/herdrdev/herdr#readme) and
-[docs](https://herdr.dev/docs/).
+Personal fork of [herdr](https://github.com/herdrdev/herdr): rendering as
+responsive as a plain terminal, vim-style navigation for spaces and agents.
+Everything else works as in herdr ([README](https://github.com/herdrdev/herdr#readme),
+[docs](https://herdr.dev/docs/)).
 
-## what's different
+## What's different
 
-- **vim navigation everywhere** — `prefix+w` jumps into the space list,
-  `prefix+a` into the agent list. There `j`/`k` move, `enter` opens, and `a` or
-  `w` jumps straight to the other list. Panes keep `h`/`l`; pane up/down moves
-  to `ctrl+j`/`ctrl+k` because `j`/`k` now drive the lists.
-  To give `j`/`k` back to the panes as in herdr, set in
-  `~/.config/herdr/config.toml` (the lists then move with the arrow keys):
-  ```toml
-  [keys]
-  navigate_workspace_up = "up"
-  navigate_workspace_down = "down"
-  navigate_pane_down = "j"
-  navigate_pane_up = "k"
-  ```
-- **next waiting agent** — `prefix+i` jumps to the next agent that is blocked
-  or has finished since you last looked, blocked first. Press it again to
-  cycle through them; with nothing waiting it briefly says so.
-- **higher frame rate** — upstream renders at most ~60 fps, which feels
-  sluggish on 120/144 Hz screens. mherdr renders at your display's rate while
-  you type or scroll and drops back to 60 fps when agents only print, which
-  saves about a quarter of herdr's CPU then. Set the refresh rate in
-  `~/.config/herdr/config.toml` (default 60, range 30–240):
-  ```toml
-  [advanced]
-  max_fps = 144
-  ```
-- **faster rendering** — less copying and allocation per frame, wheel scrolling
-  without full redraws, release builds with fat LTO.
+| feature                | how                                                                  |
+| ---------------------- | -------------------------------------------------------------------- |
+| **vim navigation**     | `prefix+w` spaces, `prefix+a` agents; `j`/`k` move, `enter` opens    |
+| **next waiting agent** | `prefix+i` jumps to blocked, then finished agents; again to cycle    |
+| **adaptive fps**       | `max_fps` while you type or scroll, 60 fps when agents only print    |
+| **faster rendering**   | less copying per frame, wheel scrolling without full redraws, LTO    |
 
-## measured
+**Key change:** pane focus up/down is `ctrl+j`/`ctrl+k`, because `j`/`k` drive
+the lists.
 
-Linux, 120×40, both builds without LTO, mherdr with `max_fps = 144`, median:
+## Configure
 
-|                                      | herdr   | mherdr  |
-| ------------------------------------ | ------- | ------- |
-| switch tab until new content         | 10.4 ms | 6.7 ms  |
-| mouse wheel step until frame         | 7.7 ms  | 2.5 ms  |
-| frames per second while scrolling    | 58      | 125     |
-| keypress until echo                  | 1.8 ms  | 1.8 ms  |
+In `~/.config/herdr/config.toml`:
 
-Compare two binaries yourself with `scripts/mherdr_bench.py`. Details,
-methodology and trade-offs: [MHERDR.md](MHERDR.md).
+```toml
+[advanced]
+max_fps = 144              # display refresh rate; default 60, range 30–240
 
-## install
+[keys]                     # optional: j/k back to panes, lists on arrows
+navigate_workspace_up = "up"
+navigate_workspace_down = "down"
+navigate_pane_down = "j"
+navigate_pane_up = "k"
+```
 
-Prebuilt binaries for Linux (x86_64, aarch64, static) and macOS (x86_64,
-arm64) are on the [releases page](https://github.com/mi-uh/mherdr/releases):
+Apply with `mherdr server reload-config`.
+
+## Install
+
+Prebuilt for Linux (x86_64, aarch64) and macOS (x86_64, arm64) on the
+[releases page](https://github.com/mi-uh/mherdr/releases):
 
 ```bash
 curl -fLo ~/.local/bin/mherdr \
@@ -61,29 +45,48 @@ curl -fLo ~/.local/bin/mherdr \
 chmod +x ~/.local/bin/mherdr
 ```
 
-macOS binaries are not signed; run `xattr -d com.apple.quarantine mherdr` once.
+**macOS:** unsigned; run `xattr -d com.apple.quarantine mherdr` once.
 
-## build
+## Build from source
 
-```bash
-cargo build --release   # fat LTO: expect 20+ minutes
-```
-
-Install your own build as `mherdr` next to the original `herdr`:
+**Requires:** Rust (version from `rust-toolchain.toml`), Zig 0.16.0.
 
 ```bash
+cargo build --release                           # fat LTO: 20+ minutes
 ln -sf "$PWD/target/release/herdr" ~/.local/bin/mherdr
-mherdr server stop      # after a rebuild: restart the server to pick it up
+mherdr server stop                              # load the new build
 mherdr
 ```
 
-Both share the config and the default session. To run them at the same time,
-give mherdr its own session: `mherdr --session m` (stop it with
-`mherdr --session m server stop`).
+**Caution:** `server stop` ends all panes and agents of the session.
 
-`herdr update` is disabled in mherdr because it would replace the build with
-upstream herdr. Update with `git pull` and a rebuild instead.
+**Update:** `git pull`, then build again. `herdr update` is disabled, it would
+install upstream herdr.
 
-## license
+## Run next to herdr
 
-Apache License 2.0, like herdr — see [LICENSE](LICENSE).
+Both share config and default session. Separate session:
+
+```bash
+mherdr --session m
+mherdr --session m server stop
+```
+
+## Measured
+
+Against upstream herdr (2026-11-20), Linux, 120×40, without LTO,
+`max_fps = 144`, median:
+
+| test                              | herdr   | mherdr  |
+| --------------------------------- | ------- | ------- |
+| tab switch until new content      | 13.5 ms | 6.7 ms  |
+| wheel step until frame            | 9.1 ms  | 2.5 ms  |
+| frames per second while scrolling | 58      | 125     |
+| keypress until echo               | 5.6 ms  | 2.0 ms  |
+| CPU while an agent prints         | 41 %    | 16 %    |
+
+Method and all results: [MHERDR.md](MHERDR.md).
+
+## License
+
+Apache 2.0, like herdr: [LICENSE](LICENSE).
