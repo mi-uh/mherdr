@@ -1831,11 +1831,25 @@ impl ClientShellState {
         if !self.config.clipboard_toast_enabled {
             return false;
         }
-        self.copy_feedback = Some(crate::app::state::CopyFeedback {
-            message: "copied to clipboard".to_owned(),
-        });
-        self.copy_feedback_deadline = Some(now + std::time::Duration::from_secs(2));
+        self.show_feedback(
+            "copied to clipboard",
+            now,
+            std::time::Duration::from_secs(2),
+        );
         true
+    }
+
+    /// Shows `message` in the short-lived feedback box until `now + duration`.
+    pub(super) fn show_feedback(
+        &mut self,
+        message: &str,
+        now: std::time::Instant,
+        duration: std::time::Duration,
+    ) {
+        self.copy_feedback = Some(crate::app::state::CopyFeedback {
+            message: message.to_owned(),
+        });
+        self.copy_feedback_deadline = Some(now + duration);
     }
 
     pub(crate) fn tick_copy_feedback(&mut self, now: std::time::Instant) -> bool {

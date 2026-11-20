@@ -23,7 +23,7 @@ panes to spaces and agents. Everything else works as in herdr; more in the
   ```
 - **next waiting agent** — `prefix+i` jumps to the next agent that is blocked
   or has finished since you last looked, blocked first. Press it again to
-  cycle through them.
+  cycle through them; with nothing waiting it briefly says so.
 - **higher frame rate** — upstream renders at most ~60 fps, which feels
   sluggish on 120/144 Hz screens. mherdr renders at your display's rate while
   you type or scroll and drops back to 60 fps when agents only print, which
