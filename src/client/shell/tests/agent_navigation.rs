@@ -340,6 +340,30 @@ fn next_waiting_agent_does_nothing_without_waiting_agents() {
     let mut state = waiting_state(&[Idle, Working, Idle], 2);
     assert_eq!(focused_by_prefix_i(&mut state), None);
     assert_eq!(state.mode, ClientShellMode::Terminal);
+    assert_eq!(
+        state
+            .copy_feedback
+            .as_ref()
+            .map(|feedback| feedback.message.as_str()),
+        Some(super::super::agent_navigation::NO_WAITING_AGENT_MESSAGE)
+    );
+    assert!(state.copy_feedback_deadline.is_some());
+}
+
+#[test]
+fn i_in_agent_navigation_hints_when_nothing_waits() {
+    use AgentStatus::*;
+    let mut state = waiting_state(&[Idle, Working], 1);
+    enter_agents(&mut state);
+    preview(&mut state, b"i");
+    assert_agent(&state, &ClientEndpointId::Local, "pane_1");
+    assert_eq!(
+        state
+            .copy_feedback
+            .as_ref()
+            .map(|feedback| feedback.message.as_str()),
+        Some(super::super::agent_navigation::NO_WAITING_AGENT_MESSAGE)
+    );
 }
 
 #[test]

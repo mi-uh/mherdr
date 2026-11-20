@@ -256,6 +256,8 @@ pub(super) fn render_agent_navigation_highlight(
     }
 }
 
+pub(super) const NO_WAITING_AGENT_MESSAGE: &str = "no agent waiting";
+
 /// Agents that wait for the user, in sidebar order with blocked agents first.
 /// Done uses this client's projected status, so a viewed completion drops out.
 fn waiting_agent_targets(
@@ -310,8 +312,8 @@ impl ClientShellState {
         Some(targets.swap_remove(next))
     }
 
-    /// `prefix+i`: focus the next agent that waits for the user. Does nothing
-    /// when no agent is blocked or has an unviewed completion.
+    /// `prefix+i`: focus the next agent that waits for the user. Shows a short
+    /// hint when no agent is blocked or has an unviewed completion.
     pub(super) fn focus_next_waiting_agent(&mut self, outcome: &mut ClientShellInput) {
         let focused_pane = self
             .snapshot
@@ -320,6 +322,7 @@ impl ClientShellState {
         let active = self.active_endpoint_id.clone();
         let current = focused_pane.as_deref().map(|pane_id| (&active, pane_id));
         let Some(target) = self.next_waiting_agent_target(current) else {
+            self.show_no_waiting_agent(outcome);
             return;
         };
         self.focus_or_activate(
@@ -347,6 +350,7 @@ impl ClientShellState {
                 .as_ref()
                 .map(|(endpoint_id, pane_id)| (endpoint_id, pane_id.as_str())),
         ) else {
+            self.show_no_waiting_agent(outcome);
             return;
         };
         let selected = self.agent_navigation_target(&target.endpoint_id, &target.pane_id);
@@ -357,5 +361,14 @@ impl ClientShellState {
             });
             outcome.repaint = true;
         }
+    }
+
+    fn show_no_waiting_agent(&mut self, outcome: &mut ClientShellInput) {
+        self.show_feedback(
+            NO_WAITING_AGENT_MESSAGE,
+            std::time::Instant::now(),
+            std::time::Duration::from_secs(1),
+        );
+        outcome.repaint = true;
     }
 }
