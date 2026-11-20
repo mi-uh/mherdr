@@ -394,3 +394,32 @@ fn i_in_workspace_navigation_switches_to_the_waiting_agent() {
     assert!(state.agent_navigation.is_some());
     assert_agent(&state, &ClientEndpointId::Local, "pane_2");
 }
+
+fn composed_text(state: &mut ClientShellState) -> String {
+    let frame = state.compose(110, 30).expect("frame");
+    frame
+        .cells
+        .chunks(frame.width as usize)
+        .map(|row| {
+            row.iter()
+                .map(|cell| cell.symbol.as_str())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn mode_bar_offers_tab_only_where_it_cycles_panes() {
+    let mut state = local_state(2);
+    enter_agents(&mut state);
+    let agents = composed_text(&mut state);
+    assert!(agents.contains("NAVIGATE agents"));
+    assert!(agents.contains("enter open"));
+    assert!(!agents.contains("tab pane"));
+
+    preview(&mut state, b"w");
+    let spaces = composed_text(&mut state);
+    assert!(spaces.contains("NAVIGATE spaces"));
+    assert!(spaces.contains("tab pane"));
+}

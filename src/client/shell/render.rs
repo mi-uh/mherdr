@@ -152,8 +152,20 @@ pub(super) fn render_mode_bar(
                         .to_owned(),
                         base,
                     ),
-                    ("tab".to_owned(), key),
-                    (" pane  ".to_owned(), base),
+                    // Agent navigation has no pane cycling; Enter opens the selection.
+                    (
+                        if navigating_agents { "enter" } else { "tab" }.to_owned(),
+                        key,
+                    ),
+                    (
+                        if navigating_agents {
+                            " open  "
+                        } else {
+                            " pane  "
+                        }
+                        .to_owned(),
+                        base,
+                    ),
                     (prefix_rhs(&keybinds.keybinds.help), key),
                     (" keybinds".to_owned(), base),
                 ]);
