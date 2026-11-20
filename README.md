@@ -5,6 +5,8 @@ responsive as a plain terminal, vim-style navigation for spaces and agents.
 Everything else works as in herdr ([README](https://github.com/herdrdev/herdr#readme),
 [docs](https://herdr.dev/docs/)).
 
+![mherdr: agent waiting for permission, sidebar in agent navigation](assets/mherdr-screenshot.png)
+
 ## What's different
 
 | feature                | how                                                                  |
@@ -16,6 +18,18 @@ Everything else works as in herdr ([README](https://github.com/herdrdev/herdr#re
 
 **Key change:** pane focus up/down is `ctrl+j`/`ctrl+k`, because `j`/`k` drive
 the lists.
+
+## Measured
+
+Against upstream herdr, 2026-11-20 ([method](MHERDR.md#measurements)):
+
+| test                              | herdr    | mherdr   | effect                      |
+| --------------------------------- | -------- | -------- | --------------------------- |
+| tab switch until new frame        | 13.5 ms  | 6.7 ms   | **2× faster**               |
+| wheel step until frame            | 9.1 ms   | 2.5 ms   | **3.6× faster**             |
+| scroll steps drawn (125 per s)    | 58 / s   | 125 / s  | **every step, none skipped** |
+| keypress until echo               | 5.6 ms   | 2.0 ms   | **2.8× faster**             |
+| CPU while an agent prints         | 41 %     | 16 %     | **−60 % CPU**               |
 
 ## Configure
 
@@ -71,18 +85,6 @@ Both share config and default session. Separate session:
 mherdr --session m
 mherdr --session m server stop
 ```
-
-## Measured
-
-Against upstream herdr, 2026-11-20 ([method](MHERDR.md#measurements)):
-
-| test                              | herdr    | mherdr   | effect                      |
-| --------------------------------- | -------- | -------- | --------------------------- |
-| tab switch until new frame        | 13.5 ms  | 6.7 ms   | **2× faster**               |
-| wheel step until frame            | 9.1 ms   | 2.5 ms   | **3.6× faster**             |
-| scroll steps drawn (125 per s)    | 58 / s   | 125 / s  | **every step, none skipped** |
-| keypress until echo               | 5.6 ms   | 2.0 ms   | **2.8× faster**             |
-| CPU while an agent prints         | 41 %     | 16 %     | **−60 % CPU**               |
 
 ## License
 
