@@ -32,10 +32,12 @@ mherdr with `MAX_FPS=144`, p50, two rounds. Lower is better except fps.
 | ------------------------------------- | ------------- | ------------- | ------------------ |
 | `switch`: tab switch until new frame  | 13.5 ms       | 6.7 ms        | **2× faster**      |
 | `wheel`: wheel step until its frame   | 9.1 ms        | 2.5 ms        | **3.6× faster**    |
-| `fps`: frames/s while scrolling       | 58            | 125           | **2× smoother**    |
+| `fps`: scroll steps drawn (125 per s) | 58 / s        | 125 / s       | **every step, none skipped** |
 | `echo`: keypress until echo           | 5.6 ms        | 2.0 ms        | **2.8× faster**    |
 | `stream`: agent prints, you idle      | 52 fps, 41 % CPU | 52 fps, 16 % CPU | **−60 % CPU**  |
 | `flood`: `seq 1 5000000`              | 5.8 s, 131 % CPU | 5.8 s, 102 % CPU | **−22 % CPU**  |
+
+`fps` sends one wheel event every 8 ms, so 125/s is the maximum, not `max_fps`.
 
 ### Run it yourself
 
