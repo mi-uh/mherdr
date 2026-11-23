@@ -21,7 +21,8 @@ the lists.
 
 ## Measured
 
-Against upstream herdr, 2026-11-20 ([method](MHERDR.md#measurements)):
+Against upstream herdr, 2026-11-20, mherdr with `max_fps = 144`, both without
+LTO; p50, timed at the PTY without a terminal emulator ([method](MHERDR.md#measurements)):
 
 | test                              | herdr    | mherdr   | effect                      |
 | --------------------------------- | -------- | -------- | --------------------------- |
